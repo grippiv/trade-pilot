@@ -933,13 +933,18 @@ const Snd = {
       d[i] = (b0 + b1 + b2 + w*.1848) * .2; }
     return this._nb = b;
   },
-  /* kleiner Raumhall: macht das Rauschen weicher und natürlicher */
+  /* Raum: Hall mit kurzer Vorverzögerung und dunklem Nachklang – lässt das Atmen weiter weg klingen */
   room(c){
     if (this._rv && this._rv.context === c) return this._rv;
-    const len = Math.floor(c.sampleRate * .7), ir = c.createBuffer(2, len, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 3); }
-    const cv = c.createConvolver(); cv.buffer = ir; const wet = c.createGain(); wet.gain.value = .35; cv.connect(wet); wet.connect(c.destination);
-    return this._rv = cv;
+    const len = Math.floor(c.sampleRate * 1.6), ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); let lp = 0;
+      for (let i = 0; i < len; i++){ const k = .25 + .6 * (i/len);            /* wird nach hinten dunkler */
+        lp += k * ((Math.random()*2-1) - lp); d[i] = lp * Math.pow(1 - i/len, 2.2); } }
+    const pre = c.createDelay(.1); pre.delayTime.value = .028;
+    const cv = c.createConvolver(); cv.buffer = ir;
+    const wet = c.createGain(); wet.gain.value = 1.1;
+    pre.connect(cv); cv.connect(wet); wet.connect(c.destination);
+    return this._rv = pre;
   },
   /* sanfte Hüllkurve ohne harte Kanten: steigt weich an, klingt weich aus */
   env(peakAt){
@@ -959,12 +964,13 @@ const Snd = {
     const curve = this.env(peakAt).map(v => v * vol);
     g.gain.setValueAtTime(0, t); g.gain.setValueCurveAtTime(curve, t, dur);
     src.connect(hi); hi.connect(lo); lo.connect(lo2); lo2.connect(g);
-    g.connect(c.destination); g.connect(this.room(c));
+    const dry = c.createGain(); dry.gain.value = .32;          /* wenig Direktschall, viel Raum = Abstand */
+    g.connect(dry); dry.connect(c.destination); g.connect(this.room(c));
     src.start(t, Math.random()); src.stop(t + dur + .05);
   },
-  inhale(ms){ this.breath({dur:ms/1000, lp0:1400, lp1:3200, hp:600, vol:.42, peakAt:.7}); },     /* ruhig durch die Nase ein */
-  topup(ms){ this.breath({dur:ms/1000*.85, lp0:2600, lp1:3400, hp:800, vol:.3, peakAt:.45}); },  /* kurz nachziehen */
-  exhale(ms){ this.breath({dur:ms/1000, lp0:1800, lp1:700, hp:250, vol:.34, peakAt:.18}); },      /* lang und locker durch den Mund aus */
+  inhale(ms){ this.breath({dur:ms/1000, lp0:800, lp1:1900, hp:350, vol:.7, peakAt:.7}); },      /* ruhig durch die Nase ein */
+  topup(ms){ this.breath({dur:ms/1000*.85, lp0:1400, lp1:2000, hp:450, vol:.5, peakAt:.45}); },  /* kurz nachziehen */
+  exhale(ms){ this.breath({dur:ms/1000, lp0:1100, lp1:450, hp:180, vol:.6, peakAt:.18}); },      /* lang und locker durch den Mund aus */
   /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
   gong(){
     [[523,.16,3.2],[1046,.06,2.4],[1569,.03,1.6],[784,.05,2.8]].forEach(([f,v,d]) =>
