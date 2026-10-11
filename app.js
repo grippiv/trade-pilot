@@ -304,7 +304,7 @@ function home(){
   let qi = 0;
   timers.push(setInterval(()=>{ const q = $('#quote'); if(!q) return; q.style.opacity = 0;
     setTimeout(()=>{ qi=(qi+1)%QUOTES.length; q.textContent = QUOTES[qi]; q.style.opacity=1; }, 500); }, 7000));
-  if (cd>0) timers.push(setInterval(()=>{ const c=$('#cdh'); if(!c) return; const l=cooldownLeft(); if(l<=0){ stopTimers(); home(); } else c.textContent=mmss(l); },1000));
+  if (cd>0) timers.push(setInterval(()=>{ const c=$('#cdh'); if(!c) return; const l=cooldownLeft(); if(l<=0){ stopTimers(); Snd.gong(); home(); } else c.textContent=mmss(l); },1000));
 }
 
 function start(){
@@ -376,18 +376,19 @@ function sigh(){
   render(`<div class="card breath">
     <div class="tag">◎ Atmen · 9 Sekunden</div>
     <div class="q">Ein tiefer Seufzer</div>
-    <p class="hint">Durch die Nase einatmen, kurz nachatmen, dann lange durch den Mund aus.</p>
+    <p class="hint">Durch die Nase einatmen, kurz nachatmen, dann lange durch den Mund aus.${cfg.sound!==false ? ' Mit Ton kannst du dabei die Augen schließen.' : ''}</p>
     <div class="circle"><div class="core" id="core"></div>
       <svg viewBox="0 0 216 216" aria-hidden="true"><circle id="arc" cx="108" cy="108" r="104" stroke-dasharray="653" stroke-dashoffset="653"/></svg>
       <div class="lab" id="blab">Einatmen</div></div>
     <div class="row"><button class="btn ghost" onclick="home()">Abbrechen</button><button class="btn ghost" style="flex:1" onclick="next()">Überspringen</button></div>
   </div>`);
   const P = [[0,2600,'Tief einatmen',.82],[2600,3600,'Nochmal kurz nach',1],[3600,9000,'Langsam ausatmen …',.42]];
-  const t0 = Date.now() + 250;
+  const t0 = Date.now() + 250; let lastPh = null;
   timers.push(setInterval(() => {
     const core = $('#core'); if (!core) return;
     const el = Date.now()-t0; if (el < 0) return;
     const ph = P.find(p => el>=p[0] && el<p[1]);
+    if (ph && ph !== lastPh){ lastPh = ph; Snd[['inhale','topup','exhale'][P.indexOf(ph)]](ph[1]-ph[0]); }
     if (ph){ $('#blab').textContent = ph[2]; core.style.transitionDuration = ((ph[1]-ph[0])/1000)+'s'; core.style.transform = `scale(${ph[3]})`; }
     $('#arc').style.strokeDashoffset = 653*(1-Math.min(1, el/9000));
     if (el >= 9000){ stopTimers(); next(); }
@@ -531,7 +532,6 @@ function commit(){
 function enterTrade(){
   curView = 'intrade';
   progress(4); $$('.phase').forEach(p=>p.classList.add('done'));
-  confetti();
   S.set('active', {dir:st.dir, coin:st.coin||'', strat:st.strat, grade:st.grade, entry:st.entry, sl:st.sl, tp:st.tp, crv:st.crv,
     riskAmt:st.riskAmt, risk:st.risk, feel:st.feel||'', start:Date.now()});
   setTimeout(inTrade, 500);
@@ -619,20 +619,23 @@ function saveTrade(art){
   S.set('active', null);
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
   if (mins>0) S.set('cooldownUntil', Date.now()+mins*60000);
-  if (R>0) confetti();
-  cooldownView(R);
+  const kept = Object.values(rules).every(Boolean);
+  if (kept){ confetti(); Snd.kept(); }
+  cooldownView(R, kept);
 }
-function cooldownView(R){
+function cooldownView(R, kept){
   stopTimers(); curView = 'cool'; progress(null);
   const loss = R!==undefined ? R<0 : null;
   render(`<div class="card" style="text-align:center">
     <div class="tag" style="color:var(--blue)">◎ Pause</div>
     <div class="q">${loss===true?'Handy weg. Kurz raus.':loss===false?'Gespeichert. Kein Übermut-Trade.':'Du bist noch in der Pause.'}</div>
     <p class="hint">${loss===true?'Nach Verlusten steigt die Risikobereitschaft messbar. Die Pause schützt dich davor.':'Auch nach Gewinnen: Der nächste Trade kommt nur über die Checkliste.'}</p>
+    ${kept===true ? '<p class="keptmsg">✓ Plan eingehalten – das zählt, nicht das Ergebnis.</p>' : ''}
     <div class="timer" id="cdt" style="color:var(--blue)">${mmss(cooldownLeft())}</div>
     <div class="row"><button class="btn ghost" style="flex:1" onclick="home()">Start</button><button class="btn ghost" style="flex:1" onclick="journal()">Journal</button></div>
   </div>`);
-  timers.push(setInterval(()=>{ const c=$('#cdt'); if(!c) return; const l=cooldownLeft(); c.textContent = l>0?mmss(l):'Fertig'; }, 1000));
+  let rang = cooldownLeft() <= 0;
+  timers.push(setInterval(()=>{ const c=$('#cdt'); if(!c) return; const l=cooldownLeft(); c.textContent = l>0?mmss(l):'Fertig'; if (l<=0 && !rang){ rang = true; Snd.gong(); } }, 1000));
 }
 
 /* ------------------------------------------------------------------
@@ -641,6 +644,7 @@ function cooldownView(R){
 function stopView(k, text){
   stopTimers(); curView = 'stop'; progress(null);
   const s = STOPS[k];
+  Snd.block();
   if (s.cool) S.set('cooldownUntil', Math.max(S.get('cooldownUntil',0), Date.now()+cfg.cooldownLoss*60000));
   const log = S.get('stops', []).slice(); log.unshift({k, date:new Date().toISOString()}); S.set('stops', log.slice(0,150));
   render(`<div class="card">
@@ -821,6 +825,7 @@ function settings(){
     ${stratListHtml(true)}
     <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
+    <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label>${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}</div>
     <div class="row"><button class="btn pri" onclick="saveSettings()">Speichern</button></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
     <div class="acct">${accountBlock()}</div>
@@ -830,6 +835,7 @@ function settings(){
     <p class="msg" id="impmsg"></p>
     <p class="disc">Trade Pilot ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
+  later(() => bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }));
 }
 function saveSettings(){
   const g = id => num($('#'+id).value);
@@ -882,6 +888,49 @@ addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
 $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
 addEventListener('resize', () => { if (curView==='journal' && jTab==='stats') drawEquity(filtered().reverse()); });
 
+/* ------------------------------------------------------------------
+   Töne: nur zur Führung (Atmen, Pause vorbei, Stopp, Plan eingehalten)
+   – nie für Gewinne. Erzeugt im Browser, keine Audiodateien.
+------------------------------------------------------------------ */
+const Snd = {
+  ctx: null,
+  on(){ return cfg.sound !== false; },
+  unlock(){
+    if (this.ctx || !(window.AudioContext || window.webkitAudioContext)) return;
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'ambient';   /* iPhone: respektiert den Lautlos-Schalter */
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e){ this.ctx = null; }
+  },
+  ready(){ if (!this.on()) return null; this.unlock(); const c = this.ctx; if (!c) return null; if (c.state === 'suspended') c.resume(); return c; },
+  /* weicher Ton mit Ein- und Ausblenden, optional gleitende Tonhöhe */
+  tone({f=440, to=null, dur=1, type='sine', vol=.05, at=0, attack=.08, release=.3}){
+    const c = this.ready(); if (!c) return;
+    const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain(), lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1800;
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.setValueAtTime(vol, t + Math.max(attack, dur - release));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); lp.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + .05);
+  },
+  inhale(ms){ this.tone({f:196, to:294, dur:ms/1000, vol:.045, attack:.4, release:.4}); },
+  topup(ms){ this.tone({f:294, to:330, dur:ms/1000, vol:.04, attack:.15, release:.25}); },
+  exhale(ms){ this.tone({f:262, to:147, dur:ms/1000, vol:.045, attack:.25, release:1.6}); },
+  /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
+  gong(){
+    [[220,.06,3.2],[440,.025,2.4],[660,.012,1.6],[880,.008,1.2]].forEach(([f,v,d]) =>
+      this.tone({f, dur:d, vol:v, attack:.01, release:d*.9}));
+  },
+  /* Stopp: ruhig und tief, kein Alarm */
+  block(){ this.tone({f:174, to:147, dur:.7, type:'triangle', vol:.05, attack:.02, release:.5}); },
+  /* Plan eingehalten: warmer, kurzer Zweiklang */
+  kept(){ this.tone({f:392, dur:.5, vol:.04, attack:.02, release:.4}); this.tone({f:494, dur:.7, vol:.035, at:.12, attack:.02, release:.55}); }
+};
+['pointerdown','keydown','touchstart'].forEach(ev => addEventListener(ev, () => Snd.unlock(), {once:true, passive:true}));
 /* ------------------------------------------------------------------
    Strategien: Vorlagen, eigene Checklisten, Einrichtung
 ------------------------------------------------------------------ */
