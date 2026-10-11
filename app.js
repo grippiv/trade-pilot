@@ -155,7 +155,8 @@ const needsLogin = () => HAS_BACKEND && !LS.get('localMode', false);
    Übersetzt alles, was angezeigt wird – Zahlen bleiben erhalten, eigene Eingaben (Coins, Notizen, Strategienamen) bleiben unverändert.
    ================================================================== */
 const I18N_READY = true;
-let LANG = (() => { const s = LS.get('lang', null); if (s === 'de' || s === 'en') return s; return I18N_READY ? (/^de\b/i.test(navigator.language || 'de') ? 'de' : 'en') : 'de'; })();
+let LANG = (() => { try { const q = new URLSearchParams(location.search).get('lang'); if (q === 'de' || q === 'en') LS.set('lang', q); } catch(e){}
+  const s = LS.get('lang', null); if (s === 'de' || s === 'en') return s; return I18N_READY ? (/^de\b/i.test(navigator.language || 'de') ? 'de' : 'en') : 'de'; })();
 const LOC = () => LANG === 'en' ? 'en-US' : 'de-DE';
 const I18N_EN = {};            // wird unten befüllt
 const NUM_RE = /[+\-−]?\d[\d.,:]*%?/g;

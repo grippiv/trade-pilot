@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://grippiv.github.io/trade-pilot/sitemap.xml
