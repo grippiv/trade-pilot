@@ -17,4 +17,4 @@ Trading-Checkliste und Journal als Web-App (PWA) – installierbar auf Mac und i
 Updates kommen automatisch beim nächsten Öffnen.
 
 ## Quellen
-- Atemgeräusch: „Breathing, calm, mouth exhale“ von giddster, Freesound #336532, Lizenz CC0 – bearbeitet (entrauscht, gestreckt, Raumklang).
+- Atemgeräusch: „Breathing, calm, mouth exhale“ von giddster, Freesound #336532, Lizenz CC0 – bearbeitet (entrauscht, gestreckt, stereo).
