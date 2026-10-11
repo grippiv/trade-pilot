@@ -933,23 +933,38 @@ const Snd = {
       d[i] = (b0 + b1 + b2 + w*.1848) * .2; }
     return this._nb = b;
   },
-  breath({dur, f0, f1, q=.9, vol=.5, attack=.5, release=.6, hp=250}){
+  /* kleiner Raumhall: macht das Rauschen weicher und natürlicher */
+  room(c){
+    if (this._rv && this._rv.context === c) return this._rv;
+    const len = Math.floor(c.sampleRate * .7), ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++){ const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 3); }
+    const cv = c.createConvolver(); cv.buffer = ir; const wet = c.createGain(); wet.gain.value = .35; cv.connect(wet); wet.connect(c.destination);
+    return this._rv = cv;
+  },
+  /* sanfte Hüllkurve ohne harte Kanten: steigt weich an, klingt weich aus */
+  env(peakAt){
+    const n = 128, a = new Float32Array(n);
+    for (let i = 0; i < n; i++){ const x = i/(n-1);
+      a[i] = x < peakAt ? Math.pow(Math.sin(Math.PI/2 * x/peakAt), 2) : Math.pow(Math.cos(Math.PI/2 * (x-peakAt)/(1-peakAt)), 2); }
+    a[0] = 0; a[n-1] = 0; return a;
+  },
+  breath({dur, lp0, lp1, hp=500, vol=.35, peakAt=.5}){
     const c = this.ready(); if (!c) return;
-    const t = c.currentTime, src = c.createBufferSource(), bp = c.createBiquadFilter(), hi = c.createBiquadFilter(), g = c.createGain();
+    const t = c.currentTime + .02, src = c.createBufferSource(), hi = c.createBiquadFilter(), lo = c.createBiquadFilter(), lo2 = c.createBiquadFilter(), g = c.createGain();
     src.buffer = this.noise(c); src.loop = true;
-    bp.type = 'bandpass'; bp.Q.value = q; bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    hi.type = 'highpass'; hi.frequency.value = hp;
-    const peak = t + Math.min(dur*.6, Math.max(attack, dur*.35));
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, peak);
-    g.gain.setValueAtTime(vol, Math.max(peak, t + dur - release));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp); bp.connect(hi); hi.connect(g); g.connect(c.destination);
+    hi.type = 'highpass'; hi.frequency.value = hp; hi.Q.value = .5;                 /* kein Brummen */
+    lo.type = 'lowpass'; lo.Q.value = .4; lo2.type = 'lowpass'; lo2.Q.value = .4;     /* flach, ohne Resonanz – kein „Schnupfen“ */
+    lo.frequency.setValueAtTime(lp0, t); lo.frequency.linearRampToValueAtTime(lp1, t + dur);
+    lo2.frequency.setValueAtTime(lp0*1.4, t); lo2.frequency.linearRampToValueAtTime(lp1*1.4, t + dur);
+    const curve = this.env(peakAt).map(v => v * vol);
+    g.gain.setValueAtTime(0, t); g.gain.setValueCurveAtTime(curve, t, dur);
+    src.connect(hi); hi.connect(lo); lo.connect(lo2); lo2.connect(g);
+    g.connect(c.destination); g.connect(this.room(c));
     src.start(t, Math.random()); src.stop(t + dur + .05);
   },
-  inhale(ms){ this.breath({dur:ms/1000, f0:700, f1:1500, q:.8, vol:1.1, attack:1.2, release:.5, hp:350}); },   /* durch die Nase ein */
-  topup(ms){ this.breath({dur:ms/1000*.8, f0:1300, f1:1900, q:.9, vol:.9, attack:.25, release:.3, hp:450}); },  /* kurz nachziehen */
-  exhale(ms){ this.breath({dur:ms/1000, f0:900, f1:380, q:.6, vol:.9, attack:.4, release:2.4, hp:150}); },    /* lang durch den Mund aus */
+  inhale(ms){ this.breath({dur:ms/1000, lp0:1400, lp1:3200, hp:600, vol:.42, peakAt:.7}); },     /* ruhig durch die Nase ein */
+  topup(ms){ this.breath({dur:ms/1000*.85, lp0:2600, lp1:3400, hp:800, vol:.3, peakAt:.45}); },  /* kurz nachziehen */
+  exhale(ms){ this.breath({dur:ms/1000, lp0:1800, lp1:700, hp:250, vol:.34, peakAt:.18}); },      /* lang und locker durch den Mund aus */
   /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
   gong(){
     [[523,.16,3.2],[1046,.06,2.4],[1569,.03,1.6],[784,.05,2.8]].forEach(([f,v,d]) =>
