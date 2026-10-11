@@ -5,7 +5,7 @@ const LS = {
   get(k, d){ try{ const v = localStorage.getItem('tp_'+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem('tp_'+k, JSON.stringify(v)); }catch(e){} }
 };
-const STATE_KEYS = ['cfg','active','cooldownUntil','lastBias','stops','resetAt','lastStrat'];
+const STATE_KEYS = ['cfg','active','cooldownUntil','lastBias','stops','resetAt','lastStrat','days','weekGoal','reviews'];
 const cache = {};
 STATE_KEYS.forEach(k => cache[k] = LS.get(k, null));
 cache.journal = (LS.get('journal', []) || []).map(j => Object.assign({id: 'j' + Date.parse(j.date)}, j));
@@ -144,6 +144,311 @@ async function startSync(){
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') Sync.schedulePull(); });
 }
 const needsLogin = () => HAS_BACKEND && !LS.get('localMode', false);
+/* ==================================================================
+   Gewohnheit & Lernen
+   – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
+     Wochenrückblick mit einem Wenn-dann-Ziel, ehrliche Edge-Spanne,
+     Push-Erinnerungen zur festen Zeit
+   ================================================================== */
+const MISTAKES = [['fomo','FOMO-Einstieg'],['frueh','Zu früh raus'],['stop','Stop verschoben'],['gross','Position zu groß'],
+  ['nach','Nachgelegt'],['kein','Kein echtes Setup'],['revenge','Revenge-Trade']];
+const MIST_TXT = Object.fromEntries(MISTAKES);
+const IFTHEN = {
+  fomo:   ['ein Coin ohne mich losläuft', 'setze ich einen Alarm an meiner Zone statt hinterherzuspringen'],
+  frueh:  ['ich früher raus will', 'schließe ich den Chart und lasse Stop und Ziel arbeiten'],
+  stop:   ['der Kurs Richtung Stop läuft', 'fasse ich den Stop nicht an – er war Teil des Plans'],
+  gross:  ['ich die Position eingebe', 'nutze ich nur die Größe, die die App berechnet hat'],
+  nach:   ['ich nachlegen will', 'tippe ich den Impuls an und warte 5 Minuten'],
+  kein:   ['mir langweilig ist', 'schließe ich die Charts, statt ein Setup zu suchen'],
+  revenge:['ich gerade einen Verlust hatte', 'mache ich die volle Pause, bevor ich wieder auf den Chart schaue'],
+  plan:   ['ich eine Regel brechen will', 'tippe ich zuerst den Impuls in der App an']
+};
+const WEEKDAYS = [[1,'Mo'],[2,'Di'],[3,'Mi'],[4,'Do'],[5,'Fr'],[6,'Sa'],[7,'So']];
+
+/* ---------- Datum-Helfer ---------- */
+const dayKey = d => { const x = new Date(d); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); };
+function isoWeek(d = new Date()){
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = x.getUTCDay() || 7;
+  x.setUTCDate(x.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(x.getUTCFullYear(), 0, 1));
+  return x.getUTCFullYear() + '-W' + String(Math.ceil(((x - y0) / 86400000 + 1) / 7)).padStart(2, '0');
+}
+const realTrades = () => cache.journal.filter(t => t.art !== 'import');
+
+/* ---------- Tageslog: Tages-Check gemacht? ---------- */
+function markDay(){
+  const d = Object.assign({}, S.get('days', {})); d[today()] = {c: 1};
+  const keys = Object.keys(d).sort(); while (keys.length > 400) delete d[keys.shift()];
+  S.set('days', d);
+}
+
+/* ---------- Disziplin-Serie ----------
+   Ein Tag zählt, wenn du den Tages-Check gemacht hast und jeder Trade des Tages regelkonform war.
+   Tage ohne Aktivität sind neutral – nicht zu traden ist nie ein Fehler.
+   Ein Joker pro Kalenderwoche fängt einen Ausrutscher ab. */
+function streakInfo(){
+  const days = S.get('days', {}), byDay = {};
+  realTrades().forEach(t => { const k = dayKey(t.date); (byDay[k] = byDay[k] || []).push(t); });
+  const active = [...new Set([...Object.keys(days), ...Object.keys(byDay)])].sort();
+  const good = k => !!(days[k] && days[k].c) && (byDay[k] || []).every(t => t.plan !== false);
+  // aktuelle Serie: rückwärts
+  let cur = 0, jokerUsed = {}, usedThisWeek = false;
+  for (let i = active.length - 1; i >= 0; i--){
+    const k = active[i];
+    if (good(k)) { cur++; continue; }
+    if (k === today() && !(days[k] && days[k].c) && !(byDay[k] || []).some(t => t.plan === false)) continue;   // heute noch offen
+    const wk = isoWeek(new Date(k + 'T12:00:00'));
+    if (!jokerUsed[wk]) { jokerUsed[wk] = true; if (wk === isoWeek()) usedThisWeek = true; continue; }
+    break;
+  }
+  // beste Serie: vorwärts mit gleicher Regel
+  let best = 0, run = 0, jw = {};
+  active.forEach(k => {
+    if (good(k)) { run++; best = Math.max(best, run); return; }
+    const wk = isoWeek(new Date(k + 'T12:00:00'));
+    if (!jw[wk]) { jw[wk] = true; return; }
+    run = 0;
+  });
+  return {cur, best: Math.max(best, cur), jokerLeft: !usedThisWeek, todayDone: good(today())};
+}
+
+/* ---------- Fehler und was sie kosten ----------
+   Kosten = Anzahl × (Ø R ohne Fehler − Ø R mit Fehler). Eine Schätzung, kein Beweis – sie wird mit mehr Trades genauer. */
+function mistakeCosts(arr){
+  const avg = a => a.reduce((s, x) => s + x.R, 0) / a.length;
+  const clean = arr.filter(t => Array.isArray(t.err) && !t.err.length && t.plan !== false);
+  if (clean.length < 3) return [];
+  const base = avg(clean);
+  return MISTAKES.map(([k, l]) => {
+    const w = arr.filter(t => Array.isArray(t.err) && t.err.includes(k));
+    return w.length ? {k, l, n: w.length, avg: avg(w), cost: w.length * (base - avg(w))} : null;
+  }).filter(x => x && x.n >= 2).sort((a, b) => b.cost - a.cost);
+}
+function mistakeRow(id, sel){
+  return `<div class="chips mist" id="${id}">${MISTAKES.map(([k, l]) => `<button type="button" data-v="${k}" class="${(sel || []).includes(k) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+}
+const readMistakes = id => $$(`#${id} button.on`).map(b => b.dataset.v);
+
+/* ---------- Edge: Zufall oder echt? ----------
+   Bootstrap-Konfidenzintervall (95 %) für den Ø R pro Trade. Robust auch bei schiefen R-Verteilungen. */
+function edgeCI(arr){
+  const r = arr.map(t => +t.R).filter(isFinite), n = r.length;
+  if (n < 5) return null;
+  const mean = r.reduce((a, b) => a + b, 0) / n, B = 2000, means = new Float64Array(B);
+  let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;   // reproduzierbar
+  for (let b = 0; b < B; b++){ let s = 0; for (let i = 0; i < n; i++) s += r[Math.floor(rnd() * n)]; means[b] = s / n; }
+  means.sort();
+  const lo = means[Math.floor(B * .025)], hi = means[Math.floor(B * .975)];
+  const sd = Math.sqrt(r.reduce((a, x) => a + (x - mean) ** 2, 0) / (n - 1));
+  const need = mean !== 0 && sd > 0 ? Math.ceil((1.96 * sd / Math.abs(mean)) ** 2) : Infinity;
+  return {n, mean, lo, hi, more: lo > 0 || hi < 0 ? 0 : (isFinite(need) ? Math.max(1, need - n) : null)};
+}
+function edgeHtml(arr){
+  const e = edgeCI(arr);
+  if (!e) return `<div class="edge"><div class="lbl2">Edge oder Zufall?</div><div class="mutedtxt">Ab 5 Trades zeigt dir die App, in welcher Spanne dein echter Ø R pro Trade wahrscheinlich liegt.</div></div>`;
+  const span = Math.max(Math.abs(e.lo), Math.abs(e.hi), .5) * 1.15, pos = v => 50 + 50 * v / span;
+  const verdict = e.lo > 0 ? `<b class="good">Edge belegt</b> – selbst im ungünstigen Fall liegst du im Plus.`
+    : e.hi < 0 ? `<b class="bad">So verliert das System</b> – auch im günstigen Fall liegt der Ø unter null.`
+    : `<b>Noch offen</b> – ${e.more ? `ca. ${e.more > 999 ? 'sehr viele' : e.more} weitere Trades` : 'mehr Trades'} nötig, bis das Ergebnis kein Zufall mehr sein kann.`;
+  return `<div class="edge"><div class="lbl2">Edge oder Zufall?</div>
+    <div>Dein Ø liegt mit 95 % Wahrscheinlichkeit zwischen <b>${sgn(e.lo)} R</b> und <b>${sgn(e.hi)} R</b> pro Trade.</div>
+    <div class="cibar" aria-hidden="true"><span class="zero" style="left:50%"></span>
+      <span class="range ${e.lo > 0 ? 'good' : e.hi < 0 ? 'bad' : ''}" style="left:${pos(e.lo)}%;width:${pos(e.hi) - pos(e.lo)}%"></span>
+      <span class="dot" style="left:${pos(e.mean)}%"></span></div>
+    <div class="mutedtxt">${verdict}</div></div>`;
+}
+
+/* ---------- Wochenrückblick ---------- */
+function weekStats(){
+  const since = Date.now() - 7 * 86400000, arr = journalList().filter(t => Date.parse(t.date) >= since);
+  return {arr, k: kpis(arr), costs: mistakeCosts(journalList().filter(t => Date.parse(t.date) >= Date.now() - 90 * 86400000))};
+}
+function reviewDue(){
+  const r = S.get('reviews', []), last = r[0], wd = new Date().getDay();
+  if (last && last.week === isoWeek()) return false;
+  if (!cache.journal.length) return false;
+  return wd === 0 || wd === 6 || wd === 1 || (last && Date.now() - last.at > 8 * 86400000);
+}
+function weeklyReview(){
+  stopTimers(); curView = 'review'; progress(null); closeModal();
+  const {arr, k, costs} = weekStats(), s = streakInfo(), g = S.get('weekGoal', null);
+  const top = costs[0];
+  const brokenRule = RULES.map(([key, l]) => [key, l, arr.filter(x => x.rules && x.rules[key] === false).length]).sort((a, b) => b[2] - a[2])[0];
+  const suggestKey = top ? top.k : (brokenRule && brokenRule[2] ? 'plan' : 'frueh');
+  const sug = IFTHEN[suggestKey];
+  st.rev = {rating: null, wenn: sug[0], dann: sug[1]};
+  render(`<div class="card">
+    <div class="tag">◷ Wochenrückblick · 2 Minuten</div>
+    <div class="q">Deine Woche</div>
+    <div class="jstats">
+      <div class="kpi"><div class="v">${k.n}</div><div class="l">Trades</div></div>
+      <div class="kpi ${k.exp > 0 ? 'good' : k.exp < 0 ? 'bad' : ''}"><div class="v">${k.n ? sgn(k.exp) : '–'}</div><div class="l">Ø R / Trade</div></div>
+      <div class="kpi"><div class="v">${isFinite(k.rule) ? fmt(k.rule, 0) + ' %' : '–'}</div><div class="l">Regeltreue</div></div>
+    </div>
+    <p class="hint small">Disziplin-Serie: <b>${s.cur} ${s.cur === 1 ? 'Tag' : 'Tage'}</b> · Rekord ${s.best}</p>
+    ${g && g.week !== isoWeek() ? `<div class="f"><label>Letzte Woche wolltest du: „Wenn ${esc(g.wenn)}, dann ${esc(g.dann)}.“ Hat das geklappt?</label>
+      ${chipRow('rv_rate', [['ja','Ja'],['teils','Teilweise'],['nein','Nein']], null)}</div>` : ''}
+    ${top ? `<div class="ins"><div class="lbl2">Dein teuerster Fehler (90 Tage)</div><div><b>${esc(top.l)}</b> – ${top.n}× · kostet dich geschätzt <b class="bad">${fmt(top.cost, 1)} R</b></div></div>`
+      : '<p class="hint small">Markier nach jedem Trade, ob ein Fehler dabei war – dann zeigt dir der Rückblick, welcher dich am meisten kostet.</p>'}
+    ${shotsStrip(arr)}
+    <div class="lbl3 first" style="margin-top:14px">Ein Ziel für nächste Woche</div>
+    <p class="hint small">Nur eins. Als Wenn-dann-Plan – so wird es im entscheidenden Moment automatisch abgerufen.</p>
+    <div class="f"><label for="rv_wenn">Wenn …</label><input id="rv_wenn" value="${esc(sug[0])}" maxlength="120" autocomplete="off"></div>
+    <div class="f"><label for="rv_dann">… dann …</label><input id="rv_dann" value="${esc(sug[1])}" maxlength="140" autocomplete="off"></div>
+    <div class="chips small" id="rv_sug">${Object.entries(IFTHEN).filter(([key]) => key !== suggestKey).slice(0, 4).map(([key, v]) => `<button type="button" data-v="${key}">${esc(MIST_TXT[key] || 'Regel brechen')}</button>`).join('')}</div>
+    <div class="row"><button class="btn ghost" onclick="home()">Später</button><button class="btn pri" onclick="saveReview()">Ziel festlegen</button></div>
+  </div>`);
+  later(() => {
+    bindChips('rv_rate', v => st.rev.rating = v);
+    $$('#rv_sug button').forEach(b => b.onclick = () => { const v = IFTHEN[b.dataset.v]; $('#rv_wenn').value = v[0]; $('#rv_dann').value = v[1]; });
+    loadShotThumbs();
+  });
+}
+function saveReview(){
+  const wenn = $('#rv_wenn').value.trim().slice(0, 120), dann = $('#rv_dann').value.trim().slice(0, 140);
+  if (!wenn || !dann){ ($('#rv_wenn').value ? $('#rv_dann') : $('#rv_wenn')).focus(); return; }
+  const prev = S.get('weekGoal', null), {k} = weekStats();
+  const list = S.get('reviews', []).slice();
+  list.unshift({week: isoWeek(), at: Date.now(), n: k.n, exp: isFinite(k.exp) ? +k.exp.toFixed(2) : null, rule: isFinite(k.rule) ? Math.round(k.rule) : null,
+    prevGoal: prev && prev.week !== isoWeek() ? prev : null, rating: st.rev && st.rev.rating || null});
+  S.set('reviews', list.slice(0, 60));
+  S.set('weekGoal', {week: isoWeek(), wenn, dann});
+  confetti(); Snd.kept(); home();
+}
+const goalLine = () => { const g = S.get('weekGoal', null); return g ? `<b>Wenn</b> ${esc(g.wenn)}, <b>dann</b> ${esc(g.dann)}.` : ''; };
+
+/* ---------- Push-Erinnerungen ---------- */
+const PUSH_URL = (TPC.SUPABASE_URL || '') + '/functions/v1/push';
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+function urlB64ToUint8(s){ s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+async function pushCall(body){
+  const { data } = await sb.auth.getSession(); const tok = data.session && data.session.access_token;
+  const r = await fetch(PUSH_URL, {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok}, body: JSON.stringify(body)});
+  return r.json().catch(() => ({}));
+}
+function reminderCfg(){ return Object.assign({time: '15:00', days: [1,2,3,4,5], review: true, on: false}, cfg.reminder || {}); }
+function reminderHtml(){
+  const r = reminderCfg();
+  const blocked = !HAS_BACKEND ? 'Erinnerungen brauchen ein Konto.' : !Sync.ok ? 'Melde dich an, um Erinnerungen zu nutzen.'
+    : isIOS() && !isStandalone() ? 'Am iPhone: erst über Teilen → „Zum Home-Bildschirm“ installieren, dann hier aktivieren.'
+    : !pushSupported() ? 'Dieser Browser unterstützt keine Push-Nachrichten.' : '';
+  return `<div class="lbl3">Erinnerung</div>
+    <p class="hint small">Feste Zeit, fester Auslöser: <b>Wenn</b> es ${esc(r.time)} Uhr ist und ich an die Charts gehe, <b>dann</b> mache ich zuerst den Tages-Check.</p>
+    <div class="grid2"><div class="f"><label for="rm_time">Uhrzeit</label><input id="rm_time" type="time" value="${esc(r.time)}"></div>
+      <div class="f"><label>Wochenrückblick</label>${chipRow('rm_rev', [['an','So 18 Uhr'],['aus','Aus']], r.review ? 'an' : 'aus', 'small')}</div></div>
+    <div class="f"><label>Tage</label><div class="chips small" id="rm_days">${WEEKDAYS.map(([d, l]) => `<button type="button" data-v="${d}" class="${r.days.includes(d) ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+    ${blocked ? `<p class="hint small warnc">${blocked}</p>` : `<div class="row" style="margin-top:0"><button class="btn ${r.on ? 'ghost' : 'pri'}" style="flex:1" id="rm_btn" onclick="pushToggle()">${r.on ? 'Erinnerung aktualisieren' : 'Push-Erinnerung aktivieren'}</button>
+      ${r.on ? `<button class="btn ghost" style="flex:1" onclick="pushTest(this)">Test senden</button>` : ''}</div>
+      ${r.on ? `<button class="linkbtn" onclick="pushOff()">Erinnerung ausschalten</button>` : ''}`}
+    <p class="msg" id="rm_msg"></p>`;
+}
+function bindReminder(){ bindChips('rm_days', null, true); bindChips('rm_rev'); }
+function readReminder(){
+  const r = reminderCfg(), t = $('#rm_time');
+  if (!t) return r;
+  const days = $$('#rm_days button.on').map(b => +b.dataset.v);
+  return Object.assign(r, {time: t.value || '15:00', days: days.length ? days : [1,2,3,4,5], review: (chipVal('rm_rev') || 'an') === 'an'});
+}
+async function pushToggle(){
+  const msg = $('#rm_msg'), btn = $('#rm_btn'); const r = readReminder();
+  const say = (t, ok) => { msg.textContent = t; msg.className = 'msg ' + (ok ? 'good' : 'bad'); };
+  btn.disabled = true;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted'){ btn.disabled = false; return say('Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für Trade Pilot.'); }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub){
+      const { pub } = await fetch(PUSH_URL).then(x => x.json());
+      sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64ToUint8(pub)});
+    }
+    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' ? LANG : 'de')});
+    if (!res.ok) throw new Error(res.error || 'Server');
+    cfg.reminder = Object.assign(r, {on: true}); saveCfg();
+    say('Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.', true);
+    setTimeout(settings, 1400);
+  } catch (e){ btn.disabled = false; say('Das hat nicht geklappt: ' + (e && e.message || e)); }
+}
+async function pushTest(btn){
+  btn.disabled = true; const res = await pushCall({action: 'test'}).catch(() => ({}));
+  const ok = res.results && res.results.some(s => s >= 200 && s < 300);
+  const m = $('#rm_msg'); m.textContent = ok ? 'Gesendet – kommt gleich an.' : 'Kein aktives Gerät gefunden. Aktiviere die Erinnerung auf diesem Gerät erneut.'; m.className = 'msg ' + (ok ? 'good' : 'bad');
+  btn.disabled = false;
+}
+async function pushOff(){
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub){ await pushCall({action: 'unsubscribe', endpoint: sub.endpoint}); await sub.unsubscribe(); } } catch (e){}
+  cfg.reminder = Object.assign(reminderCfg(), {on: false}); saveCfg(); settings();
+}
+
+/* ---------- Screenshots (Supabase Storage, privat) ---------- */
+const SHOT_BUCKET = 'shots';
+const shotsReady = () => HAS_BACKEND && Sync.ok;
+async function compressImage(file){
+  const img = await createImageBitmap(file);
+  const max = 1600, sc = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(res => c.toBlob(res, 'image/jpeg', .82));
+}
+async function uploadShots(tradeId, files){
+  const out = [];
+  for (const f of [...files].slice(0, 4)){
+    try {
+      const blob = await compressImage(f), path = `${Sync.uid}/${tradeId}/${Date.now()}${Math.floor(Math.random()*1000)}.jpg`;
+      const { error } = await sb.storage.from(SHOT_BUCKET).upload(path, blob, {contentType: 'image/jpeg', upsert: false});
+      if (!error) out.push(path);
+    } catch (e){}
+  }
+  return out;
+}
+async function attachShots(tradeId, files){
+  if (!files || !files.length || !shotsReady()) return;
+  const paths = await uploadShots(tradeId, files);
+  const t = cache.journal.find(j => j.id === tradeId); if (!t || !paths.length) return;
+  updateTrade(Object.assign({}, t, {shots: (t.shots || []).concat(paths).slice(0, 6)}));
+}
+async function removeShots(paths){ if (paths && paths.length && shotsReady()) { try { await sb.storage.from(SHOT_BUCKET).remove(paths); } catch (e){} } }
+const shotUrlCache = {};
+async function shotUrls(paths){
+  const need = paths.filter(p => !shotUrlCache[p] || shotUrlCache[p].exp < Date.now());
+  if (need.length && shotsReady()){
+    const { data } = await sb.storage.from(SHOT_BUCKET).createSignedUrls(need, 3600);
+    (data || []).forEach(d => { if (d.signedUrl) shotUrlCache[d.path] = {url: d.signedUrl, exp: Date.now() + 3300000}; });
+  }
+  return paths.map(p => shotUrlCache[p] && shotUrlCache[p].url).filter(Boolean);
+}
+function shotInput(id){
+  if (!shotsReady()) return HAS_BACKEND ? '<p class="hint small">Screenshots speichern geht mit Konto.</p>' : '';
+  return `<div class="f"><label>Chart-Screenshots (optional)</label>
+    <label class="shotpick"><input type="file" id="${id}" accept="image/*" multiple hidden onchange="shotPicked(this)"><span>＋ Bild auswählen</span><em id="${id}_n"></em></label></div>`;
+}
+function shotPicked(inp){ const n = $('#' + inp.id + '_n'); if (n) n.textContent = inp.files.length ? inp.files.length + ' ausgewählt' : ''; }
+function shotGrid(t){
+  if (!t.shots || !t.shots.length) return '';
+  return `<div class="shots" data-paths="${esc(JSON.stringify(t.shots))}">${t.shots.map(() => '<span class="shot ph"></span>').join('')}</div>`;
+}
+function shotsStrip(arr){
+  const paths = arr.flatMap(t => t.shots || []).slice(0, 12);
+  return paths.length ? `<div class="lbl3 first" style="margin-top:14px">Deine Charts der Woche</div><div class="shots" data-paths="${esc(JSON.stringify(paths))}">${paths.map(() => '<span class="shot ph"></span>').join('')}</div>` : '';
+}
+async function loadShotThumbs(){
+  for (const box of $$('.shots[data-paths]')){
+    const paths = JSON.parse(box.dataset.paths || '[]'), urls = await shotUrls(paths);
+    box.innerHTML = urls.map(u => `<a class="shot" href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Chart-Screenshot" loading="lazy"></a>`).join('');
+  }
+}
+
+function streakInfoModal(){
+  const s = streakInfo();
+  modal(`<div class="tag">◆ Disziplin-Serie</div><div class="q">${s.cur} ${s.cur===1?'Tag':'Tage'} in Folge</div>
+    <p class="hint">Ein Tag zählt, wenn du vor dem Traden den Tages-Check gemacht und dich bei jedem Trade an deine Regeln gehalten hast. Gewinne spielen keine Rolle – nur dein Verhalten.</p>
+    <p class="hint">Tage ohne Trade zählen nicht gegen dich. Nicht zu traden ist nie ein Fehler.</p>
+    <p class="hint">Pro Woche fängt <b>ein Joker</b> einen Ausrutscher ab${s.jokerLeft ? ' – diese Woche ist er noch frei.' : ' – diese Woche ist er schon verbraucht.'} Rekord: <b>${s.best}</b>.</p>
+    <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
 /* ------------------------------------------------------------------
    Inhalte
 ------------------------------------------------------------------ */
@@ -269,7 +574,7 @@ function bindChips(id, cb, multi=false){
     cb && cb(b.dataset.v, b);
   });
 }
-function go(v){ stopTimers(); closeModal(); ({home, journal, settings})[v](); }
+function go(v){ stopTimers(); closeModal(); ({home, journal, settings, review: weeklyReview})[v](); }
 
 /* ------------------------------------------------------------------
    Start
@@ -296,7 +601,10 @@ function home(){
       <span class="chip">Session <b>${session()}</b></span>
       ${b && b.newsTime ? `<span class="chip">News <b>${esc(b.newsTime)}</b></span>` : ''}
       ${cd>0?`<span class="chip warn">Pause <b id="cdh">${mmss(cd)}</b></span>`:''}
+      ${(() => { const sk = streakInfo(); return sk.cur || sk.best ? `<button class="chip streak ${sk.todayDone?'done':''}" onclick="streakInfoModal()">Serie <b>${sk.cur}</b></button>` : ''; })()}
     </div>
+    ${reviewDue() ? `<button class="reviewcta" onclick="weeklyReview()"><b>Wochenrückblick</b><span>2 Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.</span></button>` : ''}
+    ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
     <p class="quote" id="quote">${QUOTES[Math.floor(Math.random()*QUOTES.length)]}</p>
     <button class="linkbtn" onclick="addManual()">Trade ohne Checkliste nachtragen</button>
@@ -322,6 +630,9 @@ function start(){
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
 function next(){ fi++; step(); }
+/* Einen Schritt zurück – Eingaben bleiben erhalten. Zum Atmen und aus einem Stopp führt kein Weg zurück. */
+function back(){ fi = Math.max(1, fi - 1); step(); }
+const backBtn = () => `<button class="backbtn" onclick="back()" aria-label="Einen Schritt zurück">← Zurück</button>`;
 
 /* ------------------------------------------------------------------
    Tages-Check (einmal pro Tag) – Routine vor dem Handelstag
@@ -363,6 +674,7 @@ function dayUpd(){ const d = st.day, ok = d.struktur && d.b && (d.news==='nein' 
 function saveDay(){
   const d = st.day;
   const fokus = $('#d_fokus').value.split(/[,\s]+/).map(coinFmt).filter(Boolean).slice(0,8);
+  markDay();
   S.set('lastBias', {b:d.b, date:today(), struktur:d.struktur, news:d.news, newsTime: d.news==='ja' ? d.newsTime : '', fokus, note: $('#d_note').value.trim().slice(0,300)});
   if (d.b === 'neutral') return stopView('neutral');
   if (d.thenStart) return start();
@@ -429,17 +741,19 @@ function warnAngst(){
 ------------------------------------------------------------------ */
 function setup(){
   render(`<div class="card">
-    <div class="tag">● Setup</div>
+    ${backBtn()}<div class="tag">● Setup</div>
     <div class="q">Alles erfüllt?</div>
     <div class="seg" id="dir"><button data-v="long" class="lg ${st.dir==='long'?'on':''}">▲ Long</button><button data-v="short" class="sh ${st.dir==='short'?'on':''}">▼ Short</button></div>
     <div class="f"><label>Strategie</label>${chipRow('strat', strats(), st.strat)}</div>
     ${nearUSOpen()?'<p class="note">⚠ US-Börsenstart (15:30) in Reichweite: oft ein kurzer Liquidity Grab.</p>':''}
     <div class="checks" id="cks">${ckHtml(st.strat)}</div>
-    <div class="row"><button class="btn ghost" onclick="stopView('setup')">Etwas fehlt</button><button class="btn pri" id="cgo" disabled onclick="next()">Setup bestätigt</button></div>
+    ${st.setupOk ? '<p class="hint small">Du hast das Setup schon bestätigt – Haken sind gesetzt.</p>' : ''}
+    <div class="row"><button class="btn ghost" onclick="stopView('setup')">Etwas fehlt</button><button class="btn pri" id="cgo" disabled onclick="st.setupOk=true;next()">Setup bestätigt</button></div>
   </div>`);
   later(()=>{
     $$('#dir button').forEach(b => b.onclick = () => { if (b.dataset.v !== biasToday().b) stopView('gegenbias'); });
-    bindChips('strat', v => { st.strat = v; S.set('lastStrat', v); $('#cks').innerHTML = ckHtml(v); ckUpd(); });
+    bindChips('strat', v => { st.strat = v; st.setupOk = false; S.set('lastStrat', v); $('#cks').innerHTML = ckHtml(v); ckUpd(); });
+    if (st.setupOk){ $$('.ck').forEach(c => c.classList.add('on')); ckUpd(); }
   });
 }
 function ckUpd(){ $('#cgo').disabled = $$('.ck.on').length < $$('.ck').length; }
@@ -451,15 +765,15 @@ function plan(){
   const d = st.dir, coins = recentCoins();
   if (!st.coin && coins.length) st.coin = coins[0];
   render(`<div class="card">
-    <div class="tag">● Plan</div>
+    ${backBtn()}<div class="tag">● Plan</div>
     <div class="q">${d==='long'?'<span style="color:var(--green)">Long</span>':'<span style="color:var(--red)">Short</span>'} – Einstieg, Stop, Ziel</div>
     <div class="f"><label for="coin">Coin</label>
       <div class="coinrow"><input id="coin" value="${esc(st.coin||'')}" placeholder="z. B. XRP" autocomplete="off" autocapitalize="characters">
       ${coins.length ? chipRow('coins', coins, st.coin, 'small') : ''}</div></div>
     <div class="grid3">
-      <div class="f"><label for="entry">Einstieg</label><input id="entry" inputmode="decimal" autocomplete="off"></div>
-      <div class="f"><label for="sl">Stop-Loss</label><input id="sl" inputmode="decimal" autocomplete="off"></div>
-      <div class="f"><label for="tp">Ziel</label><input id="tp" inputmode="decimal" autocomplete="off"></div>
+      <div class="f"><label for="entry">Einstieg</label><input id="entry" inputmode="decimal" autocomplete="off" value="${isFinite(st.entry)&&st.entry>0?String(st.entry).replace('.',','):''}"></div>
+      <div class="f"><label for="sl">Stop-Loss</label><input id="sl" inputmode="decimal" autocomplete="off" value="${isFinite(st.sl)&&st.sl>0?String(st.sl).replace('.',','):''}"></div>
+      <div class="f"><label for="tp">Ziel</label><input id="tp" inputmode="decimal" autocomplete="off" value="${isFinite(st.tp)&&st.tp>0?String(st.tp).replace('.',','):''}"></div>
     </div>
     ${(() => { const s = stratBy(st.strat); return s && (s.stop || s.target) ? `<p class="hint small rulehint">${s.stop ? `Stop: <b>${esc(s.stop)}</b>` : ''}${s.stop && s.target ? ' · ' : ''}${s.target ? `Ziel: <b>${esc(s.target)}</b>` : ''}</p>` : ''; })()}
     <button class="mini" onclick="$('#accf').hidden=!$('#accf').hidden">Konto ${fmt(cfg.konto,0)} USDT · Risiko ${fmt(st.risk,2)} % · Hebel ${fmt(cfg.hebel,0)}x · ändern</button>
@@ -515,10 +829,11 @@ function planGo(){
 ------------------------------------------------------------------ */
 function commit(){
   render(`<div class="card">
-    <div class="tag">● Los</div>
+    ${backBtn()}<div class="tag">● Los</div>
     <div class="f"><label>Wie gut ist das Setup? Jetzt bewerten, nicht erst nach dem Ergebnis.</label>
       <div class="grades" id="grade">${GRADES.map(g=>`<button data-v="${g[0]}"><b>${g[0]}</b><span>${esc(g[1])}</span></button>`).join('')}</div></div>
     <div class="ifthen">
+      ${S.get('weekGoal', null) ? `<div class="wg">${goalLine()}<small>Dein Wochenziel</small></div>` : ''}
       <div><b>Wenn</b> der Kurs gegen mich läuft, <b>dann</b> bleibt der Stop, wo er ist.</div>
       <div><b>Wenn</b> ich früher raus oder nachlegen will, <b>dann</b> tippe ich den Impuls an, statt zu handeln.</div>
       <div><b>Wenn</b> der Trade vorbei ist, <b>dann</b> mache ich ${cfg.cooldownLoss} Minuten Pause.</div>
@@ -527,7 +842,8 @@ function commit(){
     <div class="row"><button class="btn green" id="go" disabled onclick="enterTrade()">Stop & Ziel gesetzt – ich bin drin</button></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="home()">Doch nicht eingestiegen</button></div>
   </div>`);
-  later(()=> $$('#grade button').forEach(b => b.onclick = () => { st.grade = b.dataset.v; $$('#grade button').forEach(x => x.classList.toggle('on', x===b)); $('#go').disabled = false; }));
+  later(()=> { $$('#grade button').forEach(b => { if (b.dataset.v === st.grade){ b.classList.add('on'); $('#go').disabled = false; }
+    b.onclick = () => { st.grade = b.dataset.v; $$('#grade button').forEach(x => x.classList.toggle('on', x===b)); $('#go').disabled = false; }; }); });
 }
 function enterTrade(){
   curView = 'intrade';
@@ -601,25 +917,28 @@ function endTrade(art){
     <div class="q">${art==='tp'?'Ziel erreicht':art==='sl'?'Stop getroffen – ein Datenpunkt':'Manuell geschlossen'}</div>
     <div class="f"><label for="rr">Ergebnis in R</label><input id="rr" inputmode="decimal" value="${R!==null?fmt(R):''}" placeholder="z. B. 0,5"></div>
     <div class="f"><label>An welche Regeln hast du dich gehalten? Antippen, was du gebrochen hast.</label>${rulesRow('rules', art==='manuell'?{tp:false}:{})}</div>
+    <div class="f"><label>War ein Fehler dabei? (optional, ehrlich hilft dir am meisten)</label>${mistakeRow('mist', [])}</div>
     <div class="f"><label for="note">1 % besser beim nächsten Mal (optional)</label><input id="note" placeholder="z. B. auf Kerzenschluss warten" autocomplete="off"></div>
-    <div class="f"><label for="link">Chart-Screenshot-Link (optional, z. B. TradingView)</label><input id="link" type="url" placeholder="https://www.tradingview.com/x/…" autocomplete="off"></div>
+    ${shotInput('shotf')}
+    <div class="f"><label for="link">Chart-Link (optional, z. B. TradingView)</label><input id="link" type="url" placeholder="https://www.tradingview.com/x/…" autocomplete="off"></div>
     <div class="row"><button class="btn pri" onclick="saveTrade('${art}')">Speichern</button></div>
   </div>`);
-  later(()=>{ bindChips('rules', null, true); if (R===null) $('#rr')?.focus(); });
+  later(()=>{ bindChips('rules', null, true); bindChips('mist', null, true); if (R===null) $('#rr')?.focus(); });
 }
 function cleanLink(v){ v = String(v||'').trim(); return /^https:\/\/[^\s]+$/.test(v) ? v.slice(0,300) : ''; }
 function saveTrade(art){
   const a = S.get('active', null); if (!a) return home();
   const R = num($('#rr').value);
   if (!isFinite(R)){ $('#rr').focus(); $('#rr').style.borderColor='var(--red)'; return; }
-  const rules = readRules('rules');
-  addTrade({date:new Date().toISOString(), coin:a.coin||'', strat:a.strat||'', grade:a.grade||'', dir:a.dir, entry:a.entry, sl:a.sl, tp:a.tp, R,
-    art, rules, plan: Object.values(rules).every(Boolean), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null,
-    note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true});
+  const rules = readRules('rules'), files = $('#shotf') ? [...$('#shotf').files] : [];
+  const t = {date:new Date().toISOString(), coin:a.coin||'', strat:a.strat||'', grade:a.grade||'', dir:a.dir, entry:a.entry, sl:a.sl, tp:a.tp, R,
+    art, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null,
+    note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true};
+  addTrade(t); attachShots(t.id, files);
   S.set('active', null);
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
   if (mins>0) S.set('cooldownUntil', Date.now()+mins*60000);
-  const kept = Object.values(rules).every(Boolean);
+  const kept = Object.values(rules).every(Boolean) && !readMistakes('mist').length;
   if (kept){ confetti(); Snd.kept(); }
   cooldownView(R, kept);
 }
@@ -671,11 +990,11 @@ function kpis(arr){
   const n = arr.length, wins = arr.filter(x=>x.R>0), losses = arr.filter(x=>x.R<0);
   const sum = arr.reduce((a,x)=>a+x.R,0), gp = wins.reduce((a,x)=>a+x.R,0), gl = -losses.reduce((a,x)=>a+x.R,0);
   return {n, win: n? wins.length/n*100 : NaN, exp: n? sum/n : NaN, sum, pf: gl>0 ? gp/gl : (gp>0 ? Infinity : NaN),
-    rule: n? arr.filter(x=>x.plan).length/n*100 : NaN};
+    rule: (() => { const r = arr.filter(x => typeof x.plan === 'boolean'); return r.length ? r.filter(x => x.plan).length / r.length * 100 : NaN; })()};
 }
 function insights(arr){
   const out = [], avg = a => a.length ? a.reduce((s,x)=>s+x.R,0)/a.length : NaN, MIN = 3;
-  const kept = arr.filter(x=>x.plan), broke = arr.filter(x=>!x.plan);
+  const kept = arr.filter(x=>x.plan===true), broke = arr.filter(x=>x.plan===false);
   if (kept.length>=MIN && broke.length>=MIN) out.push(`Plan gehalten: Ø <b>${sgn(avg(kept))} R</b> · Plan gebrochen: Ø <b>${sgn(avg(broke))} R</b>`);
   const g = {}; arr.forEach(x => { if (x.grade) (g[x.grade] = g[x.grade] || []).push(x); });
   const gs = ['S','A','B'].filter(k => (g[k]||[]).length>=MIN);
@@ -691,6 +1010,8 @@ function insights(arr){
   if (sk.length >= 2) out.push('Nach Strategie: ' + sk.map(k => `${esc(k)} <b>${sgn(avg(bs[k]))} R</b> (${bs[k].length})`).join(' · '));
   const brokenRule = RULES.map(([k,l]) => [l, arr.filter(x => x.rules && x.rules[k]===false).length]).sort((a,b)=>b[1]-a[1])[0];
   if (brokenRule && brokenRule[1]>=2) out.push(`Am häufigsten gebrochen: <b>${brokenRule[0]}</b> (${brokenRule[1]}×)`);
+  const mc = mistakeCosts(arr).filter(m => m.cost > 0);
+  if (mc.length) out.unshift(`Teuerster Fehler: <b>${esc(mc[0].l)}</b> – ${mc[0].n}× · kostet dich ca. <b class="bad">${fmt(mc[0].cost,1)} R</b>` + (mc[1] ? ` · danach ${esc(mc[1].l)} (${fmt(mc[1].cost,1)} R)` : ''));
   return out;
 }
 function journal(){
@@ -712,13 +1033,14 @@ function journal(){
         <div class="kpi"><div class="v">${k.n?fmt(k.rule,0)+' %':'–'}</div><div class="l">Regeltreue</div></div>
       </div>
       <div class="eqwrap"><canvas id="eq" height="150" aria-label="Kapitalkurve in R"></canvas></div>
-      ${k.n && k.n<30 ? `<p class="hint small">Noch ${30-k.n} Trades bis 30 – erst ab da werden die Zahlen aussagekräftig.</p>` : ''}
+      ${edgeHtml(arr)}
       <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div>
-      <p class="hint small">Von der Checkliste verhinderte Trades: <b>${stops.length}</b></p>`;
+      <p class="hint small">Von der Checkliste verhinderte Trades: <b>${stops.length}</b></p>
+      <button class="reviewcta small" onclick="weeklyReview()"><b>Wochenrückblick</b><span>Woche auswerten und ein Ziel festlegen</span></button>`;
   } else {
     body = `<div class="jlist">${arr.length ? arr.map(x=>`<button class="jitem" onclick="editTrade('${x.id}')">
       <span class="d" style="color:${x.dir==='long'?'var(--green)':'var(--red)'}">${x.dir==='long'?'▲':'▼'}</span>
-      <div class="m"><div><b>${esc(x.coin||'–')}</b> · ${esc(x.strat||'–')}${x.grade?` · ${esc(x.grade)}`:''}${x.checklist?'':' · <span class="warnc">ohne Checkliste</span>'}${x.plan?'':' · <span class="warnc">Regel gebrochen</span>'}</div>
+      <div class="m"><div><b>${esc(x.coin||'–')}</b> · ${esc(x.strat||'–')}${x.grade?` · ${esc(x.grade)}`:''}${x.art==='import'?' · <span class="mutedtxt">importiert</span>':x.checklist?'':' · <span class="warnc">ohne Checkliste</span>'}${x.plan===false?' · <span class="warnc">Regel gebrochen</span>':''}${x.err&&x.err.length?' · <span class="warnc">'+x.err.map(e=>esc(MIST_TXT[e]||e)).join(', ')+'</span>':''}${x.shots&&x.shots.length?' · ▣':''}</div>
       <div class="n">${new Date(x.date).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'})}${x.note?' · '+esc(x.note):''}</div></div>
       <span class="r" style="color:${x.R>0?'var(--green)':x.R<0?'var(--red)':'var(--mut)'}">${sgn(x.R)} R</span></button>`).join('')
       : '<div class="empty">Keine Trades in diesem Zeitraum. Trades aus der Checkliste landen hier automatisch – andere kannst du nachtragen.</div>'}</div>`;
@@ -766,13 +1088,15 @@ function tradeForm(t, isNew){
     <div class="f"><label>Richtung</label>${chipRow('e_dir', [['long','Long'],['short','Short']], t.dir||'long')}</div>`:''}
     <div class="f"><label>Strategie</label>${chipRow('e_strat', strats(), t.strat||strats()[0], 'small')}</div>
     <div class="f"><label>Regeln eingehalten</label>${rulesRow('e_rules', t.rules||{})}</div>
+    <div class="f"><label>Fehler</label>${mistakeRow('e_mist', t.err||[])}</div>
+    ${shotGrid(t)}${shotInput('e_shot')}
     <div class="f"><label for="e_note">Notiz</label><input id="e_note" value="${esc(t.note||'')}" autocomplete="off"></div>
     <div class="f"><label for="e_link">Chart-Link</label><input id="e_link" type="url" value="${esc(t.link||'')}" placeholder="https://…" autocomplete="off"></div>
     ${t.link?`<p class="hint small"><a href="${esc(t.link)}" target="_blank" rel="noopener">Chart öffnen ↗</a></p>`:''}
     <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="${isNew?'saveManual()':`saveEdit('${t.id}')`}">Speichern</button></div>
     ${isNew?'':`<div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="delTrade('${t.id}', this)">Trade löschen</button></div>`}`;
 }
-function bindForm(){ bindChips('e_dir'); bindChips('e_strat'); bindChips('e_rules', null, true); }
+function bindForm(){ bindChips('e_dir'); bindChips('e_strat'); bindChips('e_rules', null, true); bindChips('e_mist', null, true); loadShotThumbs(); }
 const chipVal = id => $(`#${id} button.on`)?.dataset.v;
 function editTrade(id){
   const t = cache.journal.find(j => j.id===id); if (!t) return;
@@ -782,21 +1106,25 @@ function saveEdit(id){
   const t = cache.journal.find(j => j.id===id); if (!t) return;
   const R = num($('#e_r').value); if (!isFinite(R)){ $('#e_r').style.borderColor='var(--red)'; return; }
   const rules = readRules('e_rules');
+  const files = $('#e_shot') ? [...$('#e_shot').files] : [];
   updateTrade(Object.assign({}, t, {coin: coinFmt($('#e_coin').value), R, strat: chipVal('e_strat')||t.strat, rules, plan: Object.values(rules).every(Boolean),
-    note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value)}));
+    err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value)}));
+  attachShots(id, files);
   closeModal(); journal();
 }
 let delArmed = 0;
 function delTrade(id, btn){
   if (Date.now()-delArmed > 4000){ delArmed = Date.now(); btn.textContent = 'Nochmal tippen zum Löschen'; return; }
+  const t = cache.journal.find(j => j.id===id); removeShots(t && t.shots);
   removeTrade(id); closeModal(); journal();
 }
 function addManual(){ modal(tradeForm({}, true)); bindForm(); }
 function saveManual(){
   const R = num($('#e_r').value); if (!isFinite(R)){ $('#e_r').style.borderColor='var(--red)'; return; }
   const d = new Date($('#e_date').value); const rules = readRules('e_rules');
-  addTrade({date: (isNaN(d) ? new Date() : d).toISOString(), coin: coinFmt($('#e_coin').value), dir: chipVal('e_dir')||'long', strat: chipVal('e_strat')||'',
-    R, rules, plan: Object.values(rules).every(Boolean), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value), checklist:false, art:'nachgetragen'});
+  const nt = {date: (isNaN(d) ? new Date() : d).toISOString(), coin: coinFmt($('#e_coin').value), dir: chipVal('e_dir')||'long', strat: chipVal('e_strat')||'',
+    R, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value), checklist:false, art:'nachgetragen'};
+  addTrade(nt); attachShots(nt.id, $('#e_shot') ? [...$('#e_shot').files] : []);
   closeModal(); if (curView==='journal') journal(); else home();
 }
 function exportCSV(){
@@ -823,6 +1151,7 @@ function settings(){
     <div class="q">Deine Regeln</div>
     <p class="hint">Einmal in Ruhe festlegen, nicht mitten im Trade.</p>
     ${stratListHtml(true)}
+    ${reminderHtml()}
     <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
@@ -836,7 +1165,7 @@ function settings(){
     <p class="msg" id="impmsg"></p>
     <p class="disc">Trade Pilot ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
-  later(() => bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }));
+  later(() => { bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }); bindReminder(); });
 }
 function saveSettings(){
   const g = id => num($('#'+id).value);
@@ -1283,6 +1612,8 @@ let delAccArmed = 0;
 async function deleteAccount(btn){
   if (Date.now() - delAccArmed > 4000){ delAccArmed = Date.now(); btn.textContent = 'Wirklich? Alles wird gelöscht – nochmal tippen'; return; }
   btn.disabled = true;
+  await removeShots(cache.journal.flatMap(t => t.shots || []));
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e){}
   const { error } = await sb.rpc('delete_my_account');
   if (error){ btn.disabled = false; btn.textContent = 'Löschen fehlgeschlagen – später nochmal'; return; }
   try { await sb.auth.signOut(); } catch(e){}
@@ -1351,7 +1682,7 @@ async function boot(){
   if (!HAS_BACKEND){ home(); startSync(); return; }
   let session = null;
   try { session = (await sb.auth.getSession()).data.session; } catch(e){}
-  if (!session && needsLogin()) accountView('login'); else home();
+  if (!session && needsLogin()) accountView('login'); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else home();
   startSync();
 }
 boot();
