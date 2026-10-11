@@ -14,7 +14,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="style.css">
+<script>
+  (function(){ var t = 'gold'; try { var q = new URLSearchParams(location.search).get('theme'); var s = JSON.parse(localStorage.getItem('tp_theme') || 'null');
+    if (q === 'cyan' || q === 'gold'){ t = q; localStorage.setItem('tp_theme', JSON.stringify(q)); } else if (s === 'cyan') t = 'cyan'; } catch (e) {}
+    document.documentElement.dataset.theme = t;
+    document.write('<link rel="stylesheet" href="' + (t === 'cyan' ? 'style-cyan.css' : 'style.css') + '">');
+    if (t === 'cyan') document.write('<meta name="theme-color" content="#000000">'); })();
+  </script>
+  <noscript><link rel="stylesheet" href="style.css"></noscript>
 </head>
 <body>
 <canvas id="bgfx"></canvas>
@@ -25,6 +32,7 @@
     <div class="nav">
       <button onclick="go('home')">Start</button>
       <button onclick="go('journal')">Journal</button>
+      <button onclick="go('profile')">Profil</button>
       <button onclick="go('settings')">⚙︎</button>
     </div>
   </div>
