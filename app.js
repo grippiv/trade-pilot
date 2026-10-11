@@ -894,21 +894,27 @@ function bindChips(id, cb, multi=false){
     cb && cb(b.dataset.v, b);
   });
 }
-function go(v){ stopTimers(); closeModal(); retStack = []; ({home, journal, settings, review: weeklyReview, profile})[v](); }
+function go(v){
+  if (v === 'settings' && curView !== 'settings') settingsFrom = here();
+  stopTimers(); closeModal(); retStack = []; ({home, journal, settings, review: weeklyReview, profile})[v]();
+}
 
 /* Rückweg: Unteransichten (Tages-Check, Wochenrückblick, Stopp, Anmelden) merken sich, woher du kamst,
    und bringen dich nach Speichern oder Abbrechen genau dorthin zurück – mit allen Eingaben. */
-let retStack = [];
+let retStack = [], settingsFrom = null;
 function here(){
-  if (curView === 'flow'){ const f = fi, fn = () => { fi = f; step(); }; fn.flow = true; return fn; }
-  return ({journal, settings, profile, intrade: inTrade})[curView] || home;
+  if (curView === 'flow'){ const f = fi, fn = () => { fi = f; step(); }; fn.flow = true; fn.v = 'flow'; return fn; }
+  const m = {journal, settings, profile, intrade: inTrade}; return m[curView] || home;
 }
+/* Einstellungen: Zurück speichert die Grenzen und bringt dich dorthin, woher du gekommen bist. */
+function settingsBack(){ saveSettings(true); stopTimers(); closeModal(); const f = settingsFrom || home; settingsFrom = null; f(); }
 function enter(){ retStack.push(here()); if (retStack.length > 8) retStack.shift(); }
 function ret(){ stopTimers(); closeModal(); (retStack.pop() || home)(); }
 function rerender(){ const f = ({home, journal, settings, profile})[curView]; (f || home)(); }
 
 /* Wo du warst, überlebt Neuladen und das Schließen der App durch iOS (Checkliste 10 Min., Tabs 30 Min.). */
-function saveNav(){ LS.set('nav', {v: curView, fi, st: curView === 'flow' ? st : null, thenStart: !!(st.day && st.day.thenStart), jTab, y: Math.round(window.scrollY || 0), t: Date.now()}); }
+function saveNav(){ LS.set('nav', {v: curView, fi, st: curView === 'flow' ? st : null, thenStart: !!(st.day && st.day.thenStart), jTab, y: Math.round(window.scrollY || 0), t: Date.now(),
+  sf: settingsFrom === journal ? 'journal' : settingsFrom === profile ? 'profile' : ''}); }
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNav(); });
 addEventListener('pagehide', saveNav);
 function restoreNav(){
@@ -925,6 +931,7 @@ function restoreNav(){
   if (n.v === 'day'){ dayCheck(n.thenStart); return true; }
   const f = ({journal, settings, profile})[n.v]; if (!f) return false;
   if (n.v === 'journal' && n.jTab) jTab = n.jTab;
+  if (n.v === 'settings') settingsFrom = ({journal, profile})[n.sf] || null;
   f(); if (n.y) setTimeout(() => window.scrollTo(0, n.y), 300); return true;
 }
 
@@ -1512,7 +1519,7 @@ function settings(){
     ['s_cl','Pause nach Verlust (Min.)',cfg.cooldownLoss],['s_cw','Pause nach Gewinn (Min.)',cfg.cooldownWin],
     ['s_nw','Abstand zu News (Min.)',cfg.newsWin],['s_us','Sperre nach US-Börsenstart (Min.)',cfg.usOpenBlock]];
   render(`<div class="card">
-    <div class="tag">⚙︎ Einstellungen</div>
+    ${backBtn('settingsBack()')}<div class="tag">⚙︎ Einstellungen</div>
     <div class="q">Deine Regeln</div>
     <p class="hint">Einmal in Ruhe festlegen, nicht mitten im Trade.</p>
     ${stratListHtml(true)}
@@ -1534,13 +1541,14 @@ function settings(){
   later(() => { bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }); bindReminder(); });
 }
-function saveSettings(){
+function saveSettings(quiet){
+  if (!$('#s_max')) return;
   const g = id => num($('#'+id).value);
   const pos = (v, d) => isFinite(v) && v>0 ? v : d, nn = (v, d) => isFinite(v) && v>=0 ? Math.round(v) : d;
   Object.assign(cfg, {maxTrades: Math.round(pos(g('s_max'),2)), lossLimit: pos(g('s_loss'),2), minCRV: pos(g('s_crv'),2), risk: pos(g('s_risk'),1),
     hebel: pos(g('s_lev'),5), konto: pos(g('s_konto'),1000), cooldownLoss: nn(g('s_cl'),15), cooldownWin: nn(g('s_cw'),5),
     newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10)});
-  saveCfg();
+  saveCfg(); if (quiet) return;
   const b = $('#s_save'); if (b){ b.textContent = '✓ Gespeichert'; b.classList.add('saved'); setTimeout(() => { if (b.isConnected){ b.textContent = 'Speichern'; b.classList.remove('saved'); } }, 1600); }
 }
 let resetArmed = 0;
