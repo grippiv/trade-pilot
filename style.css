@@ -303,3 +303,4 @@ input,textarea{font-size:16px}
 .lbl3.first{border-top:0;margin-top:0;padding-top:0}
 .keptmsg{display:inline-block;margin:0 auto 6px;padding:8px 14px;border-radius:999px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);color:var(--green);font-weight:700;font-size:14px;animation:pop .45s both}
 .f.tog{margin-top:14px}
+.sndrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.sndrow .mini{margin:0}

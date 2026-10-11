@@ -825,7 +825,8 @@ function settings(){
     ${stratListHtml(true)}
     <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
-    <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label>${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}</div>
+    <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
+      <p class="hint small" style="margin:6px 0 0">Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.</p></div>
     <div class="row"><button class="btn pri" onclick="saveSettings()">Speichern</button></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
     <div class="acct">${accountBlock()}</div>
@@ -904,7 +905,7 @@ const Snd = {
   },
   ready(){ if (!this.on()) return null; this.unlock(); const c = this.ctx; if (!c) return null; if (c.state === 'suspended') c.resume(); return c; },
   /* weicher Ton mit Ein- und Ausblenden, optional gleitende Tonhöhe */
-  tone({f=440, to=null, dur=1, type='sine', vol=.05, at=0, attack=.08, release=.3}){
+  tone({f=440, to=null, dur=1, type='sine', vol=.15, at=0, attack=.08, release=.3, over=true}){
     const c = this.ready(); if (!c) return;
     const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain(), lp = c.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 1800;
@@ -916,21 +917,35 @@ const Snd = {
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(lp); lp.connect(g); g.connect(c.destination);
     o.start(t); o.stop(t + dur + .05);
+    if (over){   /* leiser Oberton eine Oktave höher: klingt auch auf kleinen Lautsprechern */
+      const o2 = c.createOscillator(), g2 = c.createGain();
+      o2.type = 'sine'; o2.frequency.setValueAtTime(f*2, t); if (to) o2.frequency.exponentialRampToValueAtTime(to*2, t + dur);
+      g2.gain.value = .35; o2.connect(g2); g2.connect(lp); o2.start(t); o2.stop(t + dur + .05);
+    }
   },
-  inhale(ms){ this.tone({f:196, to:294, dur:ms/1000, vol:.045, attack:.4, release:.4}); },
-  topup(ms){ this.tone({f:294, to:330, dur:ms/1000, vol:.04, attack:.15, release:.25}); },
-  exhale(ms){ this.tone({f:262, to:147, dur:ms/1000, vol:.045, attack:.25, release:1.6}); },
+  inhale(ms){ this.tone({f:392, to:587, dur:ms/1000, vol:.14, attack:.35, release:.35}); },
+  topup(ms){ this.tone({f:587, to:659, dur:ms/1000, vol:.12, attack:.12, release:.25}); },
+  exhale(ms){ this.tone({f:523, to:294, dur:ms/1000, vol:.14, attack:.25, release:1.6}); },
   /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
   gong(){
-    [[220,.06,3.2],[440,.025,2.4],[660,.012,1.6],[880,.008,1.2]].forEach(([f,v,d]) =>
-      this.tone({f, dur:d, vol:v, attack:.01, release:d*.9}));
+    [[523,.16,3.2],[1046,.06,2.4],[1569,.03,1.6],[784,.05,2.8]].forEach(([f,v,d]) =>
+      this.tone({f, dur:d, vol:v, attack:.01, release:d*.9, over:false}));
   },
   /* Stopp: ruhig und tief, kein Alarm */
-  block(){ this.tone({f:174, to:147, dur:.7, type:'triangle', vol:.05, attack:.02, release:.5}); },
+  block(){ this.tone({f:349, to:294, dur:.7, type:'triangle', vol:.15, attack:.02, release:.5}); },
   /* Plan eingehalten: warmer, kurzer Zweiklang */
-  kept(){ this.tone({f:392, dur:.5, vol:.04, attack:.02, release:.4}); this.tone({f:494, dur:.7, vol:.035, at:.12, attack:.02, release:.55}); }
+  kept(){ this.tone({f:659, dur:.5, vol:.13, attack:.02, release:.4}); this.tone({f:784, dur:.8, vol:.12, at:.13, attack:.02, release:.6}); },
+  demo(){ this.kept(); setTimeout(() => this.gong(), 1100); }
 };
-['pointerdown','keydown','touchstart'].forEach(ev => addEventListener(ev, () => Snd.unlock(), {once:true, passive:true}));
+/* iPhone/Safari geben Audio erst nach einem echten Tippen frei: bei jedem Tippen prüfen und ggf. freischalten */
+function sndWake(){
+  Snd.unlock(); const c = Snd.ctx; if (!c) return;
+  if (c.state !== 'running'){
+    c.resume();
+    try { const b = c.createBuffer(1, 1, 22050), src = c.createBufferSource(); src.buffer = b; src.connect(c.destination); src.start(0); } catch(e){}
+  }
+}
+['click','touchend','keydown'].forEach(ev => addEventListener(ev, sndWake, {passive:true, capture:true}));
 /* ------------------------------------------------------------------
    Strategien: Vorlagen, eigene Checklisten, Einrichtung
 ------------------------------------------------------------------ */
