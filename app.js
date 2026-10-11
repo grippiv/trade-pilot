@@ -1470,7 +1470,7 @@ function settings(){
     ${reminderHtml()}
     <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
-    <div class="f tog"><label>Design</label>${chipRow('s_theme', [['gold','Gold'],['cyan','Cyan (Börsen-Look)']], document.documentElement.dataset.theme === 'cyan' ? 'cyan' : 'gold', 'small')}</div>
+    <div class="f tog"><label>Design</label>${chipRow('s_theme', [['cyan','Cyan (Standard)'],['gold','Gold']], document.documentElement.dataset.theme === 'gold' ? 'gold' : 'cyan', 'small')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
       <p class="hint small" style="margin:6px 0 0">Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.</p></div>
     <div class="row"><button class="btn pri" onclick="saveSettings()">Speichern</button></div>
@@ -1509,7 +1509,7 @@ function confirmReset(btn){
 /* ------------------------------------------------------------------
    Effekte
 ------------------------------------------------------------------ */
-const THEME_RGB = document.documentElement.dataset.theme === 'cyan' ? '0,229,255' : '245,197,66';
+const THEME_RGB = document.documentElement.dataset.theme === 'gold' ? '245,197,66' : '0,229,255';
 (function bgfx(){
   const c = $('#bgfx'), x = c.getContext('2d'); let w, h, P;
   const size = () => { w = c.width = innerWidth*devicePixelRatio; h = c.height = innerHeight*devicePixelRatio;
@@ -1524,7 +1524,7 @@ const THEME_RGB = document.documentElement.dataset.theme === 'cyan' ? '0,229,255
 function confetti(){
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const c = $('#confetti'), x = c.getContext('2d'); c.width = innerWidth; c.height = innerHeight;
-  const cols = document.documentElement.dataset.theme === 'cyan' ? ['#00e5ff','#20c58a','#4f8cff','#ffffff','#8af4ff'] : ['#f5c542','#34d399','#60a5fa','#ffffff','#ffdf7a'];
+  const cols = document.documentElement.dataset.theme === 'gold' ? ['#f5c542','#34d399','#60a5fa','#ffffff','#ffdf7a'] : ['#00e5ff','#20c58a','#4f8cff','#ffffff','#8af4ff'];
   const P = Array.from({length:130}, () => ({x:innerWidth/2, y:innerHeight/2.2, vx:(Math.random()-.5)*14, vy:-Math.random()*14-4,
     s:Math.random()*7+4, r:Math.random()*6, vr:(Math.random()-.5)*.3, c:cols[Math.floor(Math.random()*cols.length)]}));
   let t = 0;

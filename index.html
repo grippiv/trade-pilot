@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trade Pilot</title>
 <meta name="description" content="Trading-Checkliste und Journal: erst denken, dann traden.">
-<meta name="theme-color" content="#07080b">
+<meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,13 +15,13 @@
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>
-  (function(){ var t = 'gold'; try { var q = new URLSearchParams(location.search).get('theme'); var s = JSON.parse(localStorage.getItem('tp_theme') || 'null');
-    if (q === 'cyan' || q === 'gold'){ t = q; localStorage.setItem('tp_theme', JSON.stringify(q)); } else if (s === 'cyan') t = 'cyan'; } catch (e) {}
+  (function(){ var t = 'cyan'; try { var q = new URLSearchParams(location.search).get('theme'); var s = JSON.parse(localStorage.getItem('tp_theme') || 'null');
+    if (q === 'cyan' || q === 'gold'){ t = q; localStorage.setItem('tp_theme', JSON.stringify(q)); } else if (s === 'gold') t = 'gold'; } catch (e) {}
     document.documentElement.dataset.theme = t;
     document.write('<link rel="stylesheet" href="' + (t === 'cyan' ? 'style-cyan.css' : 'style.css') + '">');
-    if (t === 'cyan') document.write('<meta name="theme-color" content="#000000">'); })();
+    if (t === 'gold') document.write('<meta name="theme-color" content="#07080b">'); })();
   </script>
-  <noscript><link rel="stylesheet" href="style.css"></noscript>
+  <noscript><link rel="stylesheet" href="style-cyan.css"></noscript>
 </head>
 <body>
 <canvas id="bgfx"></canvas>
