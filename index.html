@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trade Pilot</title>
+<meta name="description" content="Trading-Checkliste und Journal: erst denken, dann traden.">
+<meta name="theme-color" content="#07080b">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trade Pilot">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="bgfx"></canvas>
+<canvas id="confetti"></canvas>
+<div class="app">
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Trade Pilot<span class="sync" id="sync"><i></i><span>Verbinde…</span></span></div>
+    <div class="nav">
+      <button onclick="go('home')">Start</button>
+      <button onclick="go('journal')">Journal</button>
+      <button onclick="go('settings')">⚙︎</button>
+    </div>
+  </div>
+  <div class="progress" id="progress"><div class="phases" id="phases"></div></div>
+  <div class="stage" id="stage"></div>
+</div>
+<div class="modal" id="modal"><div class="card" id="modalc"></div></div>
+
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
