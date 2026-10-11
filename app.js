@@ -923,9 +923,33 @@ const Snd = {
       g2.gain.value = .35; o2.connect(g2); g2.connect(lp); o2.start(t); o2.stop(t + dur + .05);
     }
   },
-  inhale(ms){ this.tone({f:392, to:587, dur:ms/1000, vol:.14, attack:.35, release:.35}); },
-  topup(ms){ this.tone({f:587, to:659, dur:ms/1000, vol:.12, attack:.12, release:.25}); },
-  exhale(ms){ this.tone({f:523, to:294, dur:ms/1000, vol:.14, attack:.25, release:1.6}); },
+  /* Atemgeräusch: gefiltertes Rauschen, das an- und abschwillt – wie echtes Ein- und Ausatmen */
+  noise(c){
+    if (this._nb) return this._nb;
+    const len = c.sampleRate * 2, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0;                           /* rosa Rauschen: weicher als weißes */
+    for (let i = 0; i < len; i++){ const w = Math.random()*2-1;
+      b0 = .99765*b0 + w*.0990460; b1 = .96300*b1 + w*.2965164; b2 = .57000*b2 + w*1.0526913;
+      d[i] = (b0 + b1 + b2 + w*.1848) * .2; }
+    return this._nb = b;
+  },
+  breath({dur, f0, f1, q=.9, vol=.5, attack=.5, release=.6, hp=250}){
+    const c = this.ready(); if (!c) return;
+    const t = c.currentTime, src = c.createBufferSource(), bp = c.createBiquadFilter(), hi = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = this.noise(c); src.loop = true;
+    bp.type = 'bandpass'; bp.Q.value = q; bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    hi.type = 'highpass'; hi.frequency.value = hp;
+    const peak = t + Math.min(dur*.6, Math.max(attack, dur*.35));
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, peak);
+    g.gain.setValueAtTime(vol, Math.max(peak, t + dur - release));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(hi); hi.connect(g); g.connect(c.destination);
+    src.start(t, Math.random()); src.stop(t + dur + .05);
+  },
+  inhale(ms){ this.breath({dur:ms/1000, f0:700, f1:1500, q:.8, vol:1.1, attack:1.2, release:.5, hp:350}); },   /* durch die Nase ein */
+  topup(ms){ this.breath({dur:ms/1000*.8, f0:1300, f1:1900, q:.9, vol:.9, attack:.25, release:.3, hp:450}); },  /* kurz nachziehen */
+  exhale(ms){ this.breath({dur:ms/1000, f0:900, f1:380, q:.6, vol:.9, attack:.4, release:2.4, hp:150}); },    /* lang durch den Mund aus */
   /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
   gong(){
     [[523,.16,3.2],[1046,.06,2.4],[1569,.03,1.6],[784,.05,2.8]].forEach(([f,v,d]) =>
