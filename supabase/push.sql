@@ -1,4 +1,4 @@
--- Trade Pilot: Push-Erinnerungen
+-- NoTilt: Push-Erinnerungen
 create table if not exists public.push_subs (
   id bigserial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,

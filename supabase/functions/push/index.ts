@@ -47,7 +47,7 @@ async function sendPush(sub, payload, vapid, subject){
 }
 
 // ---------------------------------------------------------------------------
-// Trade Pilot – Erinnerungen per Push
+// NoTilt – Erinnerungen per Push
 // ---------------------------------------------------------------------------
 import { createClient } from 'npm:@supabase/supabase-js@2';
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {auth:{persistSession:false}});
@@ -67,12 +67,12 @@ async function vapid(){
   VAPID = {pub: again.data!.pub, jwk: again.data!.priv_jwk}; return VAPID;
 }
 const TXT = {
-  de: { daily: (t: string) => ({title:'Zeit für deinen Tages-Check', body:`${t} – Wenn du gleich an die Charts gehst, dann zuerst Trade Pilot öffnen.`}),
+  de: { daily: (t: string) => ({title:'Zeit für deinen Tages-Check', body:`${t} – Wenn du gleich an die Charts gehst, dann zuerst NoTilt öffnen.`}),
         review: {title:'Dein Wochenrückblick', body:'2 Minuten: Was hat diese Woche funktioniert? Wähl ein Ziel für die nächste.'},
-        test: {title:'Trade Pilot', body:'Benachrichtigungen funktionieren ✓'} },
-  en: { daily: (t: string) => ({title:'Time for your daily check', body:`${t} – When you open the charts, open Trade Pilot first.`}),
+        test: {title:'NoTilt', body:'Benachrichtigungen funktionieren ✓'} },
+  en: { daily: (t: string) => ({title:'Time for your daily check', body:`${t} – When you open the charts, open NoTilt first.`}),
         review: {title:'Your weekly review', body:'2 minutes: what worked this week? Pick one goal for the next.'},
-        test: {title:'Trade Pilot', body:'Notifications are working ✓'} }
+        test: {title:'NoTilt', body:'Notifications are working ✓'} }
 };
 function localNow(tz: string){
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short', hour12:false})

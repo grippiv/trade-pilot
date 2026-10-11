@@ -1,4 +1,4 @@
-# Trade Pilot
+# NoTilt
 
 Trading-Checkliste und Journal als Web-App (PWA) – installierbar auf Mac und iPhone, offline nutzbar, Sync über Supabase.
 

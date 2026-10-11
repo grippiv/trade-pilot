@@ -404,7 +404,7 @@ async function pushToggle(){
   btn.disabled = true;
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted'){ btn.disabled = false; return say('Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für Trade Pilot.'); }
+    if (perm !== 'granted'){ btn.disabled = false; return say('Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für NoTilt.'); }
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if (!sub){
@@ -1536,7 +1536,7 @@ function settings(){
     <div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="exportBackup()">Backup speichern</button><button class="btn ghost" style="flex:1" onclick="$('#imp').click()">Backup laden</button></div>
     <input type="file" id="imp" accept=".json,application/json" hidden onchange="importBackup(this)">
     <p class="msg" id="impmsg"></p>
-    <p class="disc">Trade Pilot ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
+    <p class="disc">NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
   later(() => { bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }); bindReminder(); });
@@ -1899,7 +1899,7 @@ function accountView(mode='login'){
   if (curView === 'settings'){ retStack = [settings]; acctFrom = true; } else if (curView !== 'account') acctFrom = false;
   stopTimers(); curView = 'account'; progress(null); closeModal();
   const T = {
-    login:  ['Willkommen bei Trade Pilot', 'Melde dich an, damit dein Journal auf allen Geräten gleich ist.', 'Anmelden'],
+    login:  ['Willkommen bei NoTilt', 'Melde dich an, damit dein Journal auf allen Geräten gleich ist.', 'Anmelden'],
     signup: ['Konto erstellen', 'Mit Konto sind Journal und Einstellungen auf Mac und iPhone synchron.', 'Konto erstellen'],
     reset:  ['Passwort vergessen', 'Wir schicken dir einen Link, mit dem du ein neues Passwort setzt.', 'Link senden'],
     newpw:  ['Neues Passwort', 'Wähle ein neues Passwort mit mindestens 8 Zeichen.', 'Passwort speichern']
@@ -2015,9 +2015,9 @@ async function saveFile(name, data, type){
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 function exportBackup(){
-  const data = {app:'trade-pilot', v:1, exported:new Date().toISOString(), cfg:JSON.parse(JSON.stringify(cfg)),
+  const data = {app:'notilt', v:1, exported:new Date().toISOString(), cfg:JSON.parse(JSON.stringify(cfg)),
     journal: journalList(), stops: S.get('stops', []), lastStrat: S.get('lastStrat', null)};
-  saveFile(`trade_pilot_backup_${today()}.json`, JSON.stringify(data, null, 1), 'application/json');
+  saveFile(`notilt_backup_${today()}.json`, JSON.stringify(data, null, 1), 'application/json');
 }
 function importBackup(inp){
   const f = inp.files && inp.files[0]; if (!f) return;
@@ -2026,7 +2026,7 @@ function importBackup(inp){
   r.onload = () => {
     try {
       const d = JSON.parse(r.result);
-      if (!d || d.app !== 'trade-pilot' || !Array.isArray(d.journal)) throw new Error('format');
+      if (!d || !['notilt','trade-pilot'].includes(d.app) || !Array.isArray(d.journal)) throw new Error('format');
       const have = new Set(cache.journal.map(j => j.id));
       let added = 0;
       d.journal.forEach(t => {
@@ -2048,7 +2048,7 @@ function importBackup(inp){
       Sync.drain();
       msg.textContent = `Fertig: ${added} Trades übernommen, Einstellungen geladen.`; msg.className = 'msg good';
       setTimeout(settings, 1600);
-    } catch(e){ msg.textContent = 'Das ist keine gültige Trade-Pilot-Backup-Datei.'; msg.className = 'msg bad'; }
+    } catch(e){ msg.textContent = 'Das ist keine gültige NoTilt-Backup-Datei.'; msg.className = 'msg bad'; }
     inp.value = '';
   };
   r.readAsText(f);

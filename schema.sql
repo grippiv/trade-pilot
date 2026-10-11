@@ -1,4 +1,4 @@
--- Trade Pilot: Datenbank einrichten
+-- NoTilt: Datenbank einrichten
 -- In Supabase: SQL Editor → New query → alles einfügen → Run
 
 create table if not exists public.tp_state (
