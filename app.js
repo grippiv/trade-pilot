@@ -315,6 +315,7 @@ function reviewDue(){
   return wd === 0 || wd === 6 || wd === 1 || (last && Date.now() - last.at > 8 * 86400000);
 }
 function weeklyReview(){
+  if (curView !== 'review') enter();
   stopTimers(); curView = 'review'; progress(null); closeModal();
   const {arr, k, costs} = weekStats(), s = streakInfo(), g = S.get('weekGoal', null);
   const top = costs[0];
@@ -323,7 +324,7 @@ function weeklyReview(){
   const sug = IFTHEN[suggestKey];
   st.rev = {rating: null, wenn: sug[0], dann: sug[1]};
   render(`<div class="card">
-    <div class="tag">◷ Wochenrückblick · 2 Minuten</div>
+    ${backBtn('ret()')}<div class="tag">◷ Wochenrückblick · 2 Minuten</div>
     <div class="q">Deine Woche</div>
     <div class="jstats">
       <div class="kpi"><div class="v">${k.n}</div><div class="l">Trades</div></div>
@@ -342,7 +343,7 @@ function weeklyReview(){
     <div class="f"><label for="rv_wenn">Wenn …</label><input id="rv_wenn" value="${esc(sug[0])}" maxlength="120" autocomplete="off"></div>
     <div class="f"><label for="rv_dann">… dann …</label><input id="rv_dann" value="${esc(sug[1])}" maxlength="140" autocomplete="off"></div>
     <div class="chips small" id="rv_sug">${Object.entries(IFTHEN).filter(([key]) => key !== suggestKey).slice(0, 4).map(([key, v]) => `<button type="button" data-v="${key}">${esc(MIST_TXT[key] || 'Regel brechen')}</button>`).join('')}</div>
-    <div class="row"><button class="btn ghost" onclick="home()">Später</button><button class="btn pri" onclick="saveReview()">Ziel festlegen</button></div>
+    <div class="row"><button class="btn ghost" onclick="ret()">Später</button><button class="btn pri" onclick="saveReview()">Ziel festlegen</button></div>
   </div>`);
   later(() => {
     bindChips('rv_rate', v => st.rev.rating = v);
@@ -359,7 +360,7 @@ function saveReview(){
     prevGoal: prev && prev.week !== isoWeek() ? prev : null, rating: st.rev && st.rev.rating || null});
   S.set('reviews', list.slice(0, 60));
   S.set('weekGoal', {week: isoWeek(), wenn, dann});
-  confetti(); Snd.kept(); home();
+  confetti(); Snd.kept(); ret();
 }
 const goalLine = () => { const g = S.get('weekGoal', null); return g ? `<b>Wenn</b> ${esc(g.wenn)}, <b>dann</b> ${esc(g.dann)}.` : ''; };
 
@@ -868,9 +869,12 @@ function recentCoins(){
   return out.slice(0,6);
 }
 function stopTimers(){ timers.forEach(clearInterval); timers.forEach(clearTimeout); timers = []; }
+let lastKey = '';
 function render(html, cls=''){
   const stage = $('#stage'), old = stage.firstElementChild;
-  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo({top:0,behavior:'smooth'}); };
+  const key = curView + ':' + (curView === 'flow' ? fi : '') + ':' + cls, same = old && key === lastKey; lastKey = key;
+  if (same){ const y = window.scrollY; stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo(0, y); saveNav(); return; }
+  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo({top:0,behavior:'smooth'}); saveNav(); };
   if (old){ old.classList.add('out'); setTimeout(show, 200); } else show();
 }
 const later = fn => setTimeout(fn, 230);
@@ -890,7 +894,39 @@ function bindChips(id, cb, multi=false){
     cb && cb(b.dataset.v, b);
   });
 }
-function go(v){ stopTimers(); closeModal(); ({home, journal, settings, review: weeklyReview, profile})[v](); }
+function go(v){ stopTimers(); closeModal(); retStack = []; ({home, journal, settings, review: weeklyReview, profile})[v](); }
+
+/* Rückweg: Unteransichten (Tages-Check, Wochenrückblick, Stopp, Anmelden) merken sich, woher du kamst,
+   und bringen dich nach Speichern oder Abbrechen genau dorthin zurück – mit allen Eingaben. */
+let retStack = [];
+function here(){
+  if (curView === 'flow'){ const f = fi, fn = () => { fi = f; step(); }; fn.flow = true; return fn; }
+  return ({journal, settings, profile, intrade: inTrade})[curView] || home;
+}
+function enter(){ retStack.push(here()); if (retStack.length > 8) retStack.shift(); }
+function ret(){ stopTimers(); closeModal(); (retStack.pop() || home)(); }
+function rerender(){ const f = ({home, journal, settings, profile})[curView]; (f || home)(); }
+
+/* Wo du warst, überlebt Neuladen und das Schließen der App durch iOS (Checkliste 10 Min., Tabs 30 Min.). */
+function saveNav(){ LS.set('nav', {v: curView, fi, st: curView === 'flow' ? st : null, thenStart: !!(st.day && st.day.thenStart), jTab, y: Math.round(window.scrollY || 0), t: Date.now()}); }
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNav(); });
+addEventListener('pagehide', saveNav);
+function restoreNav(){
+  const n = LS.get('nav', null); if (!n || !n.t) return false;
+  const age = Date.now() - n.t;
+  if (S.get('active', null) || needsOnboarding()) return false;
+  if (n.v === 'flow' && n.st && age < 10*60000){
+    const b = biasToday();
+    if (!b || b.b === 'neutral' || cooldownLeft() > 0 || tradesToday() >= cfg.maxTrades || todayR() <= -cfg.lossLimit) return false;
+    st = n.st; if (st.dir !== b.b){ st.dir = b.b; st.setupOk = false; st.ticks = null; }
+    fi = Math.max(0, Math.min(+n.fi || 0, FLOW.length - 1)); step(); return true;
+  }
+  if (age > 30*60000) return false;
+  if (n.v === 'day'){ dayCheck(n.thenStart); return true; }
+  const f = ({journal, settings, profile})[n.v]; if (!f) return false;
+  if (n.v === 'journal' && n.jTab) jTab = n.jTab;
+  f(); if (n.y) setTimeout(() => window.scrollTo(0, n.y), 300); return true;
+}
 
 /* ------------------------------------------------------------------
    Start
@@ -946,19 +982,21 @@ function start(){
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
 function next(){ fi++; step(); }
-/* Einen Schritt zurück – Eingaben bleiben erhalten. Zum Atmen und aus einem Stopp führt kein Weg zurück. */
-function back(){ fi = Math.max(1, fi - 1); step(); }
-const backBtn = () => `<button class="backbtn" onclick="back()" aria-label="Einen Schritt zurück">← Zurück</button>`;
+/* Einen Schritt zurück – Eingaben bleiben erhalten. Aus dem ersten Schritt geht es zurück zum Start. */
+function back(){ if (fi <= 0) return home(); fi--; step(); }
+const backBtn = (fn = 'back()') => `<button class="backbtn" type="button" onclick="${fn}" aria-label="Zurück">← Zurück</button>`;
+function angstBack(){ st.risk = cfg.risk; step(); }
 
 /* ------------------------------------------------------------------
    Tages-Check (einmal pro Tag) – Routine vor dem Handelstag
 ------------------------------------------------------------------ */
-function dayCheck(thenStart){
+function dayCheck(thenStart, keep){
+  if (!keep && curView !== 'day') enter();
   stopTimers(); curView = 'day'; progress(null);
   const b = biasToday() || {};
   st.day = {struktur: b.struktur||'', news: b.news||'', newsTime: b.newsTime||'', b: b.b||'', thenStart: !!thenStart};
   render(`<div class="card">
-    <div class="tag">◷ Tages-Check · einmal pro Tag</div>
+    ${backBtn('ret()')}<div class="tag">◷ Tages-Check · einmal pro Tag</div>
     <div class="q">Wie ist die Lage heute?</div>
     <p class="hint">Routine: Was ist die letzten Tage passiert? Daily → 4h → 30m, Liquidität markieren, News prüfen.</p>
     <div class="f"><label>Struktur auf Daily / 4h (primäre Swing Levels)</label>
@@ -972,7 +1010,7 @@ function dayCheck(thenStart){
       <input id="d_fokus" placeholder="z. B. XRP, SOL, ENA" value="${esc((b.fokus||[]).join(', '))}" autocomplete="off"></div>
     <div class="f"><label for="d_note">Gedanken für heute (optional)</label>
       <input id="d_note" placeholder="z. B. Montag, erster Börsenstart der Woche – erst beobachten" value="${esc(b.note||'')}" autocomplete="off"></div>
-    <div class="row"><button class="btn ghost" onclick="home()">Abbrechen</button><button class="btn pri" id="d_go" onclick="saveDay()">Bias speichern</button></div>
+    <div class="row"><button class="btn ghost" onclick="ret()">Abbrechen</button><button class="btn pri" id="d_go" onclick="saveDay()">Bias speichern</button></div>
   </div>`);
   later(()=>{
     const bind = (id, key, after) => $$(`#${id} button`).forEach(btn => {
@@ -992,9 +1030,12 @@ function saveDay(){
   const fokus = $('#d_fokus').value.split(/[,\s]+/).map(coinFmt).filter(Boolean).slice(0,8);
   markDay();
   S.set('lastBias', {b:d.b, date:today(), struktur:d.struktur, news:d.news, newsTime: d.news==='ja' ? d.newsTime : '', fokus, note: $('#d_note').value.trim().slice(0,300)});
-  if (d.b === 'neutral') return stopView('neutral');
+  const fn = retStack.pop();
+  if (d.b === 'neutral'){ retStack = []; return stopView('neutral'); }
   if (d.thenStart) return start();
-  home();
+  /* Zurück in die Checkliste: neue Richtung übernehmen, Setup für die neue Richtung neu abhaken */
+  if (fn && fn.flow && st.dir !== d.b){ st.dir = d.b; st.setupOk = false; st.ticks = null; }
+  (fn || home)();
 }
 
 /* ------------------------------------------------------------------
@@ -1002,7 +1043,7 @@ function saveDay(){
 ------------------------------------------------------------------ */
 function sigh(){
   render(`<div class="card breath">
-    <div class="tag">◎ Atmen · 9 Sekunden</div>
+    ${backBtn()}<div class="tag">◎ Atmen · 9 Sekunden</div>
     <div class="q">Ein tiefer Seufzer</div>
     <p class="hint">Durch die Nase einatmen, kurz nachatmen, dann lange durch den Mund aus.${cfg.sound!==false ? ' Mit Ton kannst du dabei die Augen schließen.' : ''}</p>
     <div class="circle"><div class="core" id="core"></div>
@@ -1028,7 +1069,7 @@ function sigh(){
 ------------------------------------------------------------------ */
 function kopf(){
   render(`<div class="card">
-    <div class="tag">● Kopf</div>
+    ${backBtn()}<div class="tag">● Kopf</div>
     <div class="q">Was fühlst du gerade?</div>
     <p class="hint">Benenne es ehrlich. Schon das Benennen dämpft die Emotion.</p>
     <div class="opts two">${FEEL.map((f,i)=>`<button class="opt" onclick="feel('${f[0]}',${i})"><span class="k" ${i===0?'style="color:var(--green)"':''}>${i===0?'✓':'!'}</span>${esc(f[1])}</button>`).join('')}</div>
@@ -1044,7 +1085,7 @@ function feel(k, i){
 }
 function warnAngst(){
   render(`<div class="card">
-    <div class="tag" style="color:var(--gold)">▲ Achtung</div>
+    ${backBtn('angstBack()')}<div class="tag" style="color:var(--gold)">▲ Achtung</div>
     <div class="q">Angst im Spiel</div>
     <p class="hint">Angst lässt dich zu spät rein, zu früh raus oder gar nicht handeln. Meist ist das Risiko zu groß, damit ein Verlust dich kaltlässt.</p>
     <div class="henry">Für diesen Trade halbiere ich dein Risiko auf <b>${fmt(st.risk,2)} %</b>.</div>
@@ -1069,10 +1110,13 @@ function setup(){
   later(()=>{
     $$('#dir button').forEach(b => b.onclick = () => { if (b.dataset.v !== biasToday().b) stopView('gegenbias'); });
     bindChips('strat', v => { st.strat = v; st.setupOk = false; S.set('lastStrat', v); $('#cks').innerHTML = ckHtml(v); ckUpd(); });
-    if (st.setupOk){ $$('.ck').forEach(c => c.classList.add('on')); ckUpd(); }
+    if (st.setupOk) $$('.ck').forEach(c => c.classList.add('on'));
+    else if (st.ticks && st.ticksFor === st.strat) $$('.ck').forEach((c, i) => c.classList.toggle('on', st.ticks.includes(i)));
+    ckUpd();
   });
 }
-function ckUpd(){ $('#cgo').disabled = $$('.ck.on').length < $$('.ck').length; }
+function ckUpd(){ const g = $('#cgo'); if (!g) return; g.disabled = $$('.ck.on').length < $$('.ck').length;
+  st.ticks = $$('.ck').map((c, i) => c.classList.contains('on') ? i : -1).filter(i => i >= 0); st.ticksFor = st.strat; }
 
 /* ------------------------------------------------------------------
    4 · Plan
@@ -1276,21 +1320,26 @@ function cooldownView(R, kept){
 /* ------------------------------------------------------------------
    Stopp
 ------------------------------------------------------------------ */
+/* Zurück nur bei Stopps, die auf eine Eingabe zurückgehen. Gefühls-Stopps (FOMO, Gier, Revenge, Langeweile)
+   bleiben ohne Rückweg – sonst wählt man einfach „ruhig“ und die Unterbrechung wirkt nicht mehr. */
+const STOP_BACK = ['setup', 'gegenbias', 'crv', 'liq'];
 function stopView(k, text){
+  const canBack = curView === 'flow' && STOP_BACK.includes(k);
+  if (canBack) enter(); else if (curView !== 'day') retStack = [];
   stopTimers(); curView = 'stop'; progress(null);
   const s = STOPS[k];
   Snd.block();
   if (s.cool) S.set('cooldownUntil', Math.max(S.get('cooldownUntil',0), Date.now()+cfg.cooldownLoss*60000));
   const log = S.get('stops', []).slice(); log.unshift({k, date:new Date().toISOString()}); S.set('stops', log.slice(0,150));
   render(`<div class="card">
-    <svg class="xicon" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 18 L46 46"/><path d="M46 18 L18 46" style="animation-delay:.35s"/></svg>
+    ${canBack ? backBtn('ret()') : ''}<svg class="xicon" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 18 L46 46"/><path d="M46 18 L18 46" style="animation-delay:.35s"/></svg>
     <div class="tag">■ Kein Trade</div>
     <div class="q">${esc(s.t)}</div>
     <p class="hint">${esc(text || s.x)}</p>
     <div class="henry"><b>Merke:</b> ${esc(s.h)}</div>
     ${s.cool?`<p class="hint" style="margin-top:14px">${cfg.cooldownLoss} Minuten Pause gestartet.</p>`:''}
-    <div class="row"><button class="btn pri" onclick="home()">Verstanden</button></div>
-    ${k==='neutral'||k==='gegenbias' ? '<div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="dayCheck()">Tages-Check neu machen</button></div>' : ''}
+    <div class="row"><button class="btn pri" onclick="go('home')">Verstanden</button></div>
+    ${k==='neutral'||k==='gegenbias' ? '<div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="dayCheck(false, true)">Tages-Check neu machen</button></div>' : ''}
   </div>`, 'stop');
 }
 
@@ -1441,7 +1490,7 @@ function saveManual(){
   const nt = {date: (isNaN(d) ? new Date() : d).toISOString(), coin: coinFmt($('#e_coin').value), dir: chipVal('e_dir')||'long', strat: chipVal('e_strat')||'',
     R, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value), checklist:false, art:'nachgetragen', riskUsd: +(cfg.konto*cfg.risk/100).toFixed(2)};
   addTrade(nt); attachShots(nt.id, $('#e_shot') ? [...$('#e_shot').files] : []);
-  closeModal(); if (curView==='journal') journal(); else home();
+  closeModal(); rerender();
 }
 function exportCSV(){
   const j = journalList();
@@ -1473,7 +1522,7 @@ function settings(){
     <div class="f tog"><label>Design</label>${chipRow('s_theme', [['cyan','Cyan (Standard)'],['gold','Gold']], document.documentElement.dataset.theme === 'gold' ? 'gold' : 'cyan', 'small')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
       <p class="hint small" style="margin:6px 0 0">Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.</p></div>
-    <div class="row"><button class="btn pri" onclick="saveSettings()">Speichern</button></div>
+    <div class="row"><button class="btn pri" id="s_save" onclick="saveSettings()">Speichern</button></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
     <div class="acct">${accountBlock()}</div>
     <div class="lbl3">Backup</div>
@@ -1491,7 +1540,8 @@ function saveSettings(){
   Object.assign(cfg, {maxTrades: Math.round(pos(g('s_max'),2)), lossLimit: pos(g('s_loss'),2), minCRV: pos(g('s_crv'),2), risk: pos(g('s_risk'),1),
     hebel: pos(g('s_lev'),5), konto: pos(g('s_konto'),1000), cooldownLoss: nn(g('s_cl'),15), cooldownWin: nn(g('s_cw'),5),
     newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10)});
-  saveCfg(); home();
+  saveCfg();
+  const b = $('#s_save'); if (b){ b.textContent = '✓ Gespeichert'; b.classList.add('saved'); setTimeout(() => { if (b.isConnected){ b.textContent = 'Speichern'; b.classList.remove('saved'); } }, 1600); }
 }
 let resetArmed = 0;
 function confirmReset(btn){
@@ -1836,7 +1886,9 @@ function newStrat(name){
 /* ------------------------------------------------------------------
    Konto: Anmelden, Registrieren, Passwort
 ------------------------------------------------------------------ */
+let acctFrom = false;
 function accountView(mode='login'){
+  if (curView === 'settings'){ retStack = [settings]; acctFrom = true; } else if (curView !== 'account') acctFrom = false;
   stopTimers(); curView = 'account'; progress(null); closeModal();
   const T = {
     login:  ['Willkommen bei Trade Pilot', 'Melde dich an, damit dein Journal auf allen Geräten gleich ist.', 'Anmelden'],
@@ -1845,7 +1897,7 @@ function accountView(mode='login'){
     newpw:  ['Neues Passwort', 'Wähle ein neues Passwort mit mindestens 8 Zeichen.', 'Passwort speichern']
   }[mode];
   render(`<div class="card auth">
-    <div class="tag">● Konto</div>
+    ${acctFrom ? backBtn('ret()') : ''}<div class="tag">● Konto</div>
     <div class="q">${T[0]}</div>
     <p class="hint">${T[1]}</p>
     <form id="authf" onsubmit="event.preventDefault();authGo('${mode}')">
@@ -1883,12 +1935,12 @@ async function authGo(mode){
     if (mode==='login'){
       const { error } = await sb.auth.signInWithPassword({email:mail, password:pw});
       if (error) throw error;
-      LS.set('localMode', false); home(); return;
+      LS.set('localMode', false); acctFrom ? ret() : home(); return;
     }
     if (mode==='signup'){
       const { data, error } = await sb.auth.signUp({email:mail, password:pw, options:{emailRedirectTo: back}});
       if (error) throw error;
-      if (data.session){ LS.set('localMode', false); home(); return; }
+      if (data.session){ LS.set('localMode', false); acctFrom ? ret() : home(); return; }
       authMsg('Fast geschafft: Wir haben dir eine E-Mail geschickt. Bestätige den Link und melde dich dann hier an.', true);
     }
     if (mode==='reset'){
@@ -1999,10 +2051,10 @@ function importBackup(inp){
 ------------------------------------------------------------------ */
 async function boot(){
   startI18n();
-  if (!HAS_BACKEND){ home(); startSync(); return; }
+  if (!HAS_BACKEND){ if (!restoreNav()) home(); startSync(); return; }
   let session = null;
   try { session = (await sb.auth.getSession()).data.session; } catch(e){}
-  if (!session && needsLogin()) accountView('login'); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else home();
+  if (!session && needsLogin()) accountView('login'); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else if (!restoreNav()) home();
   startSync();
 }
 boot();
