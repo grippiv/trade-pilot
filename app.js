@@ -129,6 +129,7 @@ function refreshView(){
   if (curView==='home'){ stopTimers(); home(); }
   else if (curView==='journal'){ stopTimers(); journal(); }
   else if (curView==='intrade' && !cache.active){ stopTimers(); home(); }
+  else if (curView==='onboard' && !needsOnboarding()){ stopTimers(); ob = null; home(); }
 }
 async function startSync(){
   if (!HAS_BACKEND){ badge('local'); return; }
@@ -231,7 +232,7 @@ const tradesToday = () => todayTrades().length;
 const todayR = () => todayTrades().reduce((a,x) => a + (+x.R||0), 0);
 const cooldownLeft = () => Math.max(0, S.get('cooldownUntil', 0) - Date.now());
 const biasToday = () => { const b = S.get('lastBias', null); return b && b.date === today() ? b : null; };
-const strats = () => (Array.isArray(cfg.strats) && cfg.strats.length) ? cfg.strats : DEFAULTS.strats;
+const strats = () => strategies().map(s => s.name);
 function newsBlock(){
   const b = biasToday(); if (!b || !b.newsTime) return null;
   const [h, m] = b.newsTime.split(':').map(Number); if (!isFinite(h)) return null;
@@ -276,6 +277,7 @@ function go(v){ stopTimers(); closeModal(); ({home, journal, settings})[v](); }
 function home(){
   curView = 'home'; progress(null);
   if (S.get('active', null)) return inTrade();
+  if (needsOnboarding()) return onboarding();
   const n = tradesToday(), cd = cooldownLeft(), r = todayR(), b = biasToday();
   const locked = cd>0 || n>=cfg.maxTrades || r <= -cfg.lossLimit;
   const biasChip = !b ? `<button class="chip warn" onclick="dayCheck()">Tages-Check <b>offen</b></button>`
@@ -307,6 +309,7 @@ function home(){
 
 function start(){
   stopTimers();
+  if (needsOnboarding()) return onboarding();
   if (cooldownLeft()>0) return cooldownView();
   if (tradesToday()>=cfg.maxTrades) return stopView('limit');
   if (todayR() <= -cfg.lossLimit) return stopView('verlustlimit');
@@ -315,7 +318,7 @@ function start(){
   if (b.b==='neutral') return stopView('neutral');
   const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. Kein neuer Trade ${cfg.newsWin} Minuten davor und danach.`);
   if (usOpenBlock()) return stopView('usopen', `Die US-Börse hat um 15:30 Uhr geöffnet. In den ersten ${cfg.usOpenBlock} Minuten keine neuen Trades.`);
-  st = {dir: b.b, risk: cfg.risk, strat: S.get('lastStrat', strats()[0])}; fi = 0; step();
+  const ls = S.get('lastStrat', ''); st = {dir: b.b, risk: cfg.risk, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
 function next(){ fi++; step(); }
@@ -430,12 +433,12 @@ function setup(){
     <div class="seg" id="dir"><button data-v="long" class="lg ${st.dir==='long'?'on':''}">▲ Long</button><button data-v="short" class="sh ${st.dir==='short'?'on':''}">▼ Short</button></div>
     <div class="f"><label>Strategie</label>${chipRow('strat', strats(), st.strat)}</div>
     ${nearUSOpen()?'<p class="note">⚠ US-Börsenstart (15:30) in Reichweite: oft ein kurzer Liquidity Grab.</p>':''}
-    <div class="checks">${checks().map(c=>`<button class="ck" onclick="this.classList.toggle('on');ckUpd()"><span class="box"></span><span>${esc(c)}</span></button>`).join('')}</div>
+    <div class="checks" id="cks">${ckHtml(st.strat)}</div>
     <div class="row"><button class="btn ghost" onclick="stopView('setup')">Etwas fehlt</button><button class="btn pri" id="cgo" disabled onclick="next()">Setup bestätigt</button></div>
   </div>`);
   later(()=>{
     $$('#dir button').forEach(b => b.onclick = () => { if (b.dataset.v !== biasToday().b) stopView('gegenbias'); });
-    bindChips('strat', v => { st.strat = v; S.set('lastStrat', v); });
+    bindChips('strat', v => { st.strat = v; S.set('lastStrat', v); $('#cks').innerHTML = ckHtml(v); ckUpd(); });
   });
 }
 function ckUpd(){ $('#cgo').disabled = $$('.ck.on').length < $$('.ck').length; }
@@ -457,6 +460,7 @@ function plan(){
       <div class="f"><label for="sl">Stop-Loss</label><input id="sl" inputmode="decimal" autocomplete="off"></div>
       <div class="f"><label for="tp">Ziel</label><input id="tp" inputmode="decimal" autocomplete="off"></div>
     </div>
+    ${(() => { const s = stratBy(st.strat); return s && (s.stop || s.target) ? `<p class="hint small rulehint">${s.stop ? `Stop: <b>${esc(s.stop)}</b>` : ''}${s.stop && s.target ? ' · ' : ''}${s.target ? `Ziel: <b>${esc(s.target)}</b>` : ''}</p>` : ''; })()}
     <button class="mini" onclick="$('#accf').hidden=!$('#accf').hidden">Konto ${fmt(cfg.konto,0)} USDT · Risiko ${fmt(st.risk,2)} % · Hebel ${fmt(cfg.hebel,0)}x · ändern</button>
     <div class="grid3" id="accf" hidden>
       <div class="f"><label for="konto">Konto (USDT)</label><input id="konto" inputmode="decimal" value="${cfg.konto}"></div>
@@ -678,6 +682,9 @@ function insights(arr){
   if (withC.length>=MIN && noC.length>=MIN) out.push(`Mit Checkliste: Ø <b>${sgn(avg(withC))} R</b> · Ohne: Ø <b>${sgn(avg(noC))} R</b>`);
   const imp = arr.filter(x=>x.impulse>0), noImp = arr.filter(x=>!x.impulse);
   if (imp.length>=MIN && noImp.length>=MIN) out.push(`Trades mit Impulsen: Ø <b>${sgn(avg(imp))} R</b> · ohne: Ø <b>${sgn(avg(noImp))} R</b>`);
+  const bs = {}; arr.forEach(x => { if (x.strat) (bs[x.strat] = bs[x.strat] || []).push(x); });
+  const sk = Object.keys(bs).filter(k => bs[k].length >= MIN).sort((a,b) => avg(bs[b]) - avg(bs[a]));
+  if (sk.length >= 2) out.push('Nach Strategie: ' + sk.map(k => `${esc(k)} <b>${sgn(avg(bs[k]))} R</b> (${bs[k].length})`).join(' · '));
   const brokenRule = RULES.map(([k,l]) => [l, arr.filter(x => x.rules && x.rules[k]===false).length]).sort((a,b)=>b[1]-a[1])[0];
   if (brokenRule && brokenRule[1]>=2) out.push(`Am häufigsten gebrochen: <b>${brokenRule[0]}</b> (${brokenRule[1]}×)`);
   return out;
@@ -811,9 +818,9 @@ function settings(){
     <div class="tag">⚙︎ Einstellungen</div>
     <div class="q">Deine Regeln</div>
     <p class="hint">Einmal in Ruhe festlegen, nicht mitten im Trade.</p>
+    ${stratListHtml(true)}
+    <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
-    <div class="f"><label for="s_strats">Deine Strategien (mit Komma)</label><input id="s_strats" value="${esc(strats().join(', '))}" autocomplete="off"></div>
-    <div class="f"><label for="s_checks">Deine Setup-Checkliste (eine Bedingung pro Zeile, am besten 3–7)</label><textarea id="s_checks" rows="5">${esc(checks().join('\n'))}</textarea></div>
     <div class="row"><button class="btn pri" onclick="saveSettings()">Speichern</button></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
     <div class="acct">${accountBlock()}</div>
@@ -827,11 +834,9 @@ function settings(){
 function saveSettings(){
   const g = id => num($('#'+id).value);
   const pos = (v, d) => isFinite(v) && v>0 ? v : d, nn = (v, d) => isFinite(v) && v>=0 ? Math.round(v) : d;
-  const sl = $('#s_strats').value.split(',').map(s=>s.trim().slice(0,30)).filter(Boolean).slice(0,8);
-  const ck = $('#s_checks').value.split('\n').map(s=>s.trim().slice(0,140)).filter(Boolean).slice(0,9);
   Object.assign(cfg, {maxTrades: Math.round(pos(g('s_max'),2)), lossLimit: pos(g('s_loss'),2), minCRV: pos(g('s_crv'),2), risk: pos(g('s_risk'),1),
     hebel: pos(g('s_lev'),5), konto: pos(g('s_konto'),1000), cooldownLoss: nn(g('s_cl'),15), cooldownWin: nn(g('s_cw'),5),
-    newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10), strats: sl.length ? sl : DEFAULTS.strats.slice(), checks: ck.length ? ck : DEFAULT_CHECKS.slice()});
+    newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10)});
   saveCfg(); home();
 }
 let resetArmed = 0;
@@ -877,6 +882,186 @@ addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
 $('#modal').addEventListener('click', e => { if (e.target.id==='modal') closeModal(); });
 addEventListener('resize', () => { if (curView==='journal' && jTab==='stats') drawEquity(filtered().reverse()); });
 
+/* ------------------------------------------------------------------
+   Strategien: Vorlagen, eigene Checklisten, Einrichtung
+------------------------------------------------------------------ */
+const TEMPLATES = [
+  {name:'Fair Value Gap', icon:'▤', desc:'Rücksetzer in eine Preislücke',
+   checks:['Die Lücke liegt in Richtung des Trends auf dem höheren Zeitrahmen','Der Kurs ist jetzt zurück in der Lücke','Reaktion mit Bestätigungskerze – nach Kerzenschluss','Bis zum Ziel liegt kein starkes Hindernis'],
+   stop:'Hinter der Kerze, die die Lücke erzeugt hat', target:'Nächstes Hoch bzw. Tief mit Liquidität'},
+  {name:'Support & Resistance', icon:'☰', desc:'Reaktion an einer wichtigen Zone',
+   checks:['Die Zone hat in der Vergangenheit klar reagiert','Der Kurs ist jetzt in der Zone – nicht schon weit weg','Bestätigungskerze: Hammer, Engulfing oder Schluss über/unter der Zone','Der höhere Zeitrahmen spricht nicht dagegen'],
+   stop:'Hinter der Zone plus etwas Puffer', target:'Nächste gegenüberliegende Zone'},
+  {name:'Trendfolge / Breakout', icon:'↗', desc:'Mitfahren, wenn ein Level bricht',
+   checks:['Klarer Trend: höhere Hochs und Tiefs (bzw. tiefere)','Ausbruch mit Kerzenschluss über bzw. unter dem Level','Direkt vor dem Kurs liegt kein großer Widerstand','Momentum oder Volumen bestätigt den Ausbruch'],
+   stop:'Hinter dem letzten Swing', target:'Nachziehender Stop oder festes CRV'},
+  {name:'Pullback', icon:'↩', desc:'Einstieg im Rücksetzer eines Trends',
+   checks:['Der Trend auf dem höheren Zeitrahmen ist intakt','Der Kurs setzt an eine Zone oder gleitende Linie zurück','Umkehrsignal nach Kerzenschluss','Die Struktur ist nicht gebrochen'],
+   stop:'Unter bzw. über dem Tief des Rücksetzers', target:'Letztes Hoch bzw. Tief des Trends'},
+  {name:'Range', icon:'⇆', desc:'Seitwärtsmarkt von Rand zu Rand',
+   checks:['Die Range ist klar: oben und unten mindestens zweimal berührt','Der Kurs ist am Rand der Range – nicht in der Mitte','Ablehnung am Rand nach Kerzenschluss','Kein Ausbruch auf dem höheren Zeitrahmen'],
+   stop:'Knapp außerhalb der Range', target:'Mitte oder andere Seite der Range'},
+  {name:'Liquidity Sweep', icon:'⤓', desc:'Fehlausbruch über ein offensichtliches Level',
+   checks:['Offensichtliches Hoch bzw. Tief mit Stops dahinter','Docht holt die Liquidität und schließt wieder zurück','Strukturbruch auf dem kleineren Zeitrahmen','Einstieg im Rücksetzer, nicht im Impuls'],
+   stop:'Hinter dem Docht des Sweeps', target:'Gegenüberliegende Liquidität'}
+];
+const sid = () => 's' + Date.now().toString(36) + Math.floor(Math.random()*1e4).toString(36);
+const tplByName = n => { const q = String(n||'').toLowerCase().trim(); return q ? TEMPLATES.find(t => t.name.toLowerCase() === q) || TEMPLATES.find(t => t.name.toLowerCase().startsWith(q)) : null; };
+function fromTemplate(t){ return {id: sid(), name: t.name, checks: t.checks.slice(), stop: t.stop||'', target: t.target||''}; }
+function strategies(){
+  if (Array.isArray(cfg.strategies) && cfg.strategies.length) return cfg.strategies;
+  /* Umzug von der alten Version: eine Liste für alle Strategien */
+  const names = (Array.isArray(cfg.strats) && cfg.strats.length) ? cfg.strats : DEFAULTS.strats;
+  const custom = Array.isArray(cfg.checks) && cfg.checks.length && cfg.checks.join('|') !== DEFAULT_CHECKS.join('|') ? cfg.checks : null;
+  cfg.strategies = names.map(n => { const t = tplByName(n) || {name:n, checks:DEFAULT_CHECKS};
+    return {id: sid(), name: n, checks: (custom || t.checks).slice(), stop: t.stop||'', target: t.target||''}; });
+  return cfg.strategies;
+}
+const stratBy = name => strategies().find(s => s.name === name) || strategies()[0];
+const checksFor = name => { const s = stratBy(name); return s && s.checks.length ? s.checks : DEFAULT_CHECKS; };
+function ckHtml(name){ return checksFor(name).map(c=>`<button class="ck" onclick="this.classList.toggle('on');ckUpd()"><span class="box"></span><span>${esc(c)}</span></button>`).join(''); }
+const needsOnboarding = () => !cfg.onboarded && !cache.journal.length && !(Array.isArray(cfg.strategies) && cfg.strategies.length);
+
+/* Einrichtung beim ersten Start: 1) Strategien wählen 2) Fragen prüfen 3) Grundregeln */
+let ob = null;
+function onboarding(stage=1){
+  stopTimers(); curView = 'onboard'; progress(null); closeModal();
+  if (!ob) ob = {pick: new Set(), list: [], i: 0};
+  if (stage===1){
+    render(`<div class="card ob">
+      <div class="tag">● Einrichtung 1/3</div>
+      <div class="q">Welche Strategien tradest du?</div>
+      <p class="hint">Tipp alle an, die du nutzt. Jede bekommt ihre eigene Checkliste – die kannst du gleich anpassen.</p>
+      <div class="tpls">${TEMPLATES.map((t,i)=>`<button class="tpl ${ob.pick.has(i)?'on':''}" data-i="${i}"><span class="ti">${t.icon}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join('')}
+        <button class="tpl ${ob.pick.has('own')?'on':''}" data-i="own"><span class="ti">✎</span><b>Eigene Strategie</b><small>Von null selbst beschreiben</small></button></div>
+      <div class="row"><button class="btn ghost" onclick="obSkip()">Später</button><button class="btn pri" id="ob1" ${ob.pick.size?'':'disabled'} onclick="obToEdit()">Weiter</button></div>
+    </div>`);
+    later(()=> $$('.tpl').forEach(b => b.onclick = () => { const k = b.dataset.i==='own' ? 'own' : +b.dataset.i;
+      ob.pick.has(k) ? ob.pick.delete(k) : ob.pick.add(k); b.classList.toggle('on'); $('#ob1').disabled = !ob.pick.size; }));
+  }
+  if (stage===2){
+    const s = ob.list[ob.i];
+    render(`<div class="card ob">
+      <div class="tag">● Einrichtung 2/3${ob.list.length>1 ? ` · Strategie ${ob.i+1}/${ob.list.length}` : ''}</div>
+      ${stratEditor(s, true)}
+      <div class="row"><button class="btn ghost" onclick="obBack()">Zurück</button><button class="btn pri" onclick="obNextStrat()">${ob.i < ob.list.length-1 ? 'Nächste Strategie' : 'Weiter'}</button></div>
+    </div>`);
+    later(growAll);
+  }
+  if (stage===3){
+    render(`<div class="card ob">
+      <div class="tag">● Einrichtung 3/3</div>
+      <div class="q">Deine Grundregeln</div>
+      <p class="hint">Die App hält dich an diese Grenzen – vor allem dann, wenn du es selbst gerade nicht willst.</p>
+      <div class="grid2">
+        <div class="f"><label for="o_konto">Kontostand (USDT)</label><input id="o_konto" inputmode="decimal" value="${cfg.konto}"></div>
+        <div class="f"><label for="o_risk">Risiko pro Trade (%)</label><input id="o_risk" inputmode="decimal" value="${cfg.risk}"></div>
+        <div class="f"><label for="o_max">Max. Trades pro Tag</label><input id="o_max" inputmode="decimal" value="${cfg.maxTrades}"></div>
+        <div class="f"><label for="o_crv">Mindest-CRV</label><input id="o_crv" inputmode="decimal" value="${cfg.minCRV}"></div>
+      </div>
+      <p class="hint small">Faustregel: 0,5–1 % Risiko pro Trade. So überstehst du auch eine Pechsträhne von 10 Verlusten.</p>
+      <div class="row"><button class="btn ghost" onclick="onboarding(2)">Zurück</button><button class="btn pri" onclick="obFinish()">Los geht's</button></div>
+    </div>`);
+  }
+}
+function obToEdit(){
+  const prev = new Map(ob.list.map(s => [s._k, s]));
+  ob.list = [...ob.pick].sort((a,b)=> (a==='own') - (b==='own') || a-b).map(k => prev.get(k) ||
+    Object.assign(k==='own' ? {id:sid(), name:'', checks:['','',''], stop:'', target:''} : fromTemplate(TEMPLATES[k]), {_k:k}));
+  ob.i = 0; onboarding(2);
+}
+function obBack(){ readEditor(ob.list[ob.i], true); if (ob.i>0){ ob.i--; onboarding(2); } else onboarding(1); }
+function obNextStrat(){
+  if (!readEditor(ob.list[ob.i])) return;
+  if (ob.i < ob.list.length-1){ ob.i++; onboarding(2); } else onboarding(3);
+}
+function obFinish(){
+  const g = id => num($('#'+id).value), pos = (v,d) => isFinite(v) && v>0 ? v : d;
+  Object.assign(cfg, {konto: pos(g('o_konto'),1000), risk: pos(g('o_risk'),1), maxTrades: Math.round(pos(g('o_max'),2)), minCRV: pos(g('o_crv'),2),
+    strategies: ob.list.map(({_k, ...s}) => s), onboarded: true});
+  S.set('lastStrat', cfg.strategies[0].name);
+  saveCfg(); ob = null; confetti(); home();
+}
+function obSkip(){ strategies(); cfg.onboarded = true; saveCfg(); ob = null; home(); }
+
+/* Editor für eine Strategie (Einrichtung und Einstellungen) */
+function stratEditor(s, wizard){
+  return `<div class="q" style="margin-bottom:14px">${wizard ? (s.name ? esc(s.name) : 'Deine eigene Strategie') : 'Strategie bearbeiten'}</div>
+    <div class="f"><label for="se_name">Name</label><input id="se_name" value="${esc(s.name)}" maxlength="30" placeholder="z. B. Orderblock-Retest" autocomplete="off"></div>
+    <div class="f"><label>Was muss erfüllt sein, bevor du einsteigst?</label>
+      <p class="hint small" style="margin-bottom:8px">Das werden deine Fragen vor jedem Trade. Kurz und mit Ja/Nein zu beantworten – am besten 3 bis 6.</p>
+      <div class="cklist" id="se_checks">${s.checks.map(c => ckRow(c)).join('')}</div>
+      <button class="mini" type="button" onclick="addCk()">+ Bedingung hinzufügen</button></div>
+    <div class="grid2">
+      <div class="f"><label for="se_stop">Wohin kommt dein Stop?</label><input id="se_stop" value="${esc(s.stop)}" maxlength="80" placeholder="z. B. hinter das letzte Tief" autocomplete="off"></div>
+      <div class="f"><label for="se_tp">Wo ist dein Ziel?</label><input id="se_tp" value="${esc(s.target)}" maxlength="80" placeholder="z. B. nächstes Hoch" autocomplete="off"></div>
+    </div>
+    <p class="msg" id="se_msg"></p>`;
+}
+const ckRow = c => `<div class="ckrow"><textarea rows="1" maxlength="140" placeholder="z. B. Kurs ist an meiner Zone" oninput="grow(this)">${esc(c)}</textarea><button type="button" aria-label="Bedingung entfernen" onclick="this.parentElement.remove()">✕</button></div>`;
+function addCk(){ const l = $('#se_checks'); if (l.children.length >= 9) return; l.insertAdjacentHTML('beforeend', ckRow('')); l.lastElementChild.querySelector('textarea').focus(); }
+function grow(t){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; const m = $('#se_msg'); if (m) m.textContent = ''; }
+function growAll(){ $$('#se_checks textarea').forEach(grow); const n = $('#se_name'); if (n) n.oninput = () => { const m = $('#se_msg'); if (m) m.textContent = ''; }; }
+function readEditor(s, silent){
+  const name = $('#se_name').value.trim().slice(0,30);
+  const checks = $$('#se_checks textarea').map(i => i.value.replace(/\s+/g,' ').trim()).filter(Boolean).slice(0,9);
+  const msg = t => { if (!silent){ const m = $('#se_msg'); m.textContent = t; m.className = 'msg bad'; } return false; };
+  if (!silent){
+    if (!name) return msg('Gib der Strategie einen Namen.');
+    if (checks.length < 2) return msg('Trag mindestens 2 Bedingungen ein – sonst ist es keine Checkliste.');
+  }
+  Object.assign(s, {name: name || s.name, checks: checks.length ? checks : s.checks, stop: $('#se_stop').value.trim().slice(0,80), target: $('#se_tp').value.trim().slice(0,80)});
+  return true;
+}
+
+/* Strategien in den Einstellungen */
+function stratListHtml(first){
+  return `<div class="lbl3 ${first?'first':''}">Deine Strategien</div>
+    <div class="slist">${strategies().map(s => `<button class="sitem" onclick="editStrat('${s.id}')"><b>${esc(s.name)}</b><span>${s.checks.length} Fragen ✎</span></button>`).join('')}</div>
+    <div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="pickTemplate()">+ Strategie hinzufügen</button></div>`;
+}
+function editStrat(id){
+  const s = strategies().find(x => x.id===id); if (!s) return;
+  modal(`<div class="tag">● Strategie</div>${stratEditor(s, false)}
+    <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveStrat('${id}')">Speichern</button></div>
+    ${strategies().length > 1 ? `<div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="delStrat('${id}', this)">Strategie löschen</button></div>` : ''}`);
+  growAll();
+}
+function saveStrat(id){
+  const list = strategies(), s = list.find(x => x.id===id); if (!s) return;
+  const old = s.name, copy = Object.assign({}, s);
+  if (!readEditor(copy)) return;
+  if (list.some(x => x.id!==id && x.name===copy.name)) { const m = $('#se_msg'); m.textContent = 'Diesen Namen gibt es schon.'; m.className='msg bad'; return; }
+  Object.assign(s, copy);
+  if (old !== s.name){
+    cache.journal.filter(t => t.strat===old).forEach(t => updateTrade(Object.assign({}, t, {strat: s.name})));
+    if (S.get('lastStrat')===old) S.set('lastStrat', s.name);
+  }
+  saveCfg(); closeModal(); settings();
+}
+let delStratArmed = 0;
+function delStrat(id, btn){
+  if (Date.now()-delStratArmed > 4000){ delStratArmed = Date.now(); btn.textContent = 'Nochmal tippen – Trades bleiben im Journal'; return; }
+  cfg.strategies = strategies().filter(x => x.id!==id); saveCfg(); closeModal(); settings();
+}
+function pickTemplate(){
+  const have = new Set(strategies().map(s => s.name));
+  modal(`<div class="tag">● Neue Strategie</div><div class="q">Womit möchtest du starten?</div>
+    <div class="tpls">${TEMPLATES.filter(t => !have.has(t.name)).map(t=>`<button class="tpl" onclick="newStrat('${esc(t.name)}')"><span class="ti">${t.icon}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join('')}
+      <button class="tpl" onclick="newStrat('')"><span class="ti">✎</span><b>Eigene Strategie</b><small>Von null selbst beschreiben</small></button></div>
+    <div class="row"><button class="btn ghost" style="flex:1" onclick="closeModal()">Abbrechen</button></div>`);
+}
+function newStrat(name){
+  const t = tplByName(name), s = t ? fromTemplate(t) : {id:sid(), name:'', checks:['','',''], stop:'', target:''};
+  modal(`<div class="tag">● Neue Strategie</div>${stratEditor(s, false)}
+    <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" id="ns_go">Hinzufügen</button></div>`);
+  growAll();
+  $('#ns_go').onclick = () => {
+    if (!readEditor(s)) return;
+    if (strategies().some(x => x.name===s.name)){ const m = $('#se_msg'); m.textContent = 'Diesen Namen gibt es schon.'; m.className='msg bad'; return; }
+    strategies().push(s); saveCfg(); closeModal(); settings();
+  };
+}
 /* ------------------------------------------------------------------
    Konto: Anmelden, Registrieren, Passwort
 ------------------------------------------------------------------ */
@@ -1021,7 +1206,9 @@ function importBackup(inp){
       LS.set('journal', cache.journal);
       if (d.cfg && typeof d.cfg === 'object'){
         const keep = {konto: cfg.konto};
-        Object.assign(cfg, d.cfg, d.cfg.konto ? {} : keep); saveCfg();
+        Object.assign(cfg, d.cfg, d.cfg.konto ? {} : keep);
+        if (!Array.isArray(d.cfg.strategies)){ delete cfg.strategies; strategies(); }   /* altes Backup: Strategien daraus übernehmen */
+        cfg.onboarded = true; saveCfg();
       }
       if (Array.isArray(d.stops)) S.set('stops', d.stops.concat(S.get('stops', [])).slice(0, 150));
       if (d.lastStrat) S.set('lastStrat', d.lastStrat);

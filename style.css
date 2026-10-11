@@ -275,3 +275,29 @@ input,textarea{font-size:16px}
 .legal p,.legal li{color:#c9ccd4;font-size:15px}.legal ul{padding-left:20px}
 .legal a{color:var(--gold)}
 .ph{background:rgba(245,197,66,.15);color:var(--gold);padding:0 4px;border-radius:4px}
+/* Strategien */
+.tpls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:4px}
+.tpl{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:14px;border-radius:14px;background:#171b24;border:1px solid var(--line);transition:.2s;animation:pop .35s both}
+.tpl:hover{border-color:#40485a}
+.tpl .ti{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#232836;color:var(--gold);font-size:16px;margin-bottom:6px;transition:.2s}
+.tpl b{font-size:15px}
+.tpl small{color:var(--mut);font-size:12.5px;line-height:1.35}
+.tpl.on{border-color:var(--gold);background:rgba(245,197,66,.08)}
+.tpl.on .ti{background:var(--gold);color:#1a1300}
+.cklist{display:grid;gap:8px;margin-bottom:6px}
+.ckrow{display:flex;gap:8px;align-items:center}
+.ckrow input{flex:1;min-width:0}
+.ckrow button{flex:none;width:40px;height:44px;border-radius:10px;border:1px solid var(--line);color:var(--mut)}
+.ckrow button:hover{color:var(--red);border-color:rgba(248,113,113,.4)}
+.slist{display:grid;gap:8px}
+.sitem{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;background:#171b24;border:1px solid var(--line);text-align:left;transition:.2s}
+.sitem:hover{border-color:#40485a}
+.sitem span{color:var(--mut);font-size:13px;white-space:nowrap}
+.rulehint{margin:-2px 0 6px}
+.rulehint b{color:var(--txt);font-weight:600}
+.ob .grid2{margin-bottom:6px}
+@media (max-width:380px){.tpls{grid-template-columns:1fr}}
+.ckrow{align-items:flex-start}
+.ckrow textarea{flex:1;min-width:0;min-height:44px;resize:none;overflow:hidden;line-height:1.4;padding:11px 12px;background:#0e1117;border:1px solid var(--line);border-radius:10px;outline:none;transition:border .2s}
+.ckrow textarea:focus{border-color:var(--gold)}
+.lbl3.first{border-top:0;margin-top:0;padding-top:0}
