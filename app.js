@@ -968,9 +968,22 @@ const Snd = {
     g.connect(dry); dry.connect(c.destination); g.connect(this.room(c));
     src.start(t, Math.random()); src.stop(t + dur + .05);
   },
-  inhale(ms){ this.breath({dur:ms/1000, lp0:800, lp1:1900, hp:350, vol:.7, peakAt:.7}); },      /* ruhig durch die Nase ein */
-  topup(ms){ this.breath({dur:ms/1000*.85, lp0:1400, lp1:2000, hp:450, vol:.5, peakAt:.45}); },  /* kurz nachziehen */
-  exhale(ms){ this.breath({dur:ms/1000, lp0:1100, lp1:450, hp:180, vol:.6, peakAt:.18}); },      /* lang und locker durch den Mund aus */
+  /* echte Atem-Aufnahme (CC0, Freesound #336532 „Breathing, calm, mouth exhale“ von giddster) – bearbeitet: entrauscht, gestreckt, Raum */
+  files: {inhale:'sounds/atem_ein.mp3', topup:'sounds/atem_nach.mp3', exhale:'sounds/atem_aus.mp3'},
+  bufs: {}, loading: false,
+  load(){
+    const c = this.ctx; if (!c || this.loading) return; this.loading = true;
+    Object.entries(this.files).forEach(([k, u]) => fetch(u).then(r => r.arrayBuffer()).then(ab => c.decodeAudioData(ab))
+      .then(b => { this.bufs[k] = b; }).catch(() => {}));
+  },
+  sample(k, vol=1){
+    const c = this.ready(); if (!c || !this.bufs[k]) return false;
+    const src = c.createBufferSource(), g = c.createGain(); src.buffer = this.bufs[k]; g.gain.value = vol;
+    src.connect(g); g.connect(c.destination); src.start(c.currentTime + .01); return true;
+  },
+  inhale(ms){ if (this.sample('inhale', .95)) return; this.breath({dur:ms/1000, lp0:800, lp1:1900, hp:350, vol:.7, peakAt:.7}); },      /* ruhig durch die Nase ein */
+  topup(ms){ if (this.sample('topup', .9)) return; this.breath({dur:ms/1000*.85, lp0:1400, lp1:2000, hp:450, vol:.5, peakAt:.45}); },  /* kurz nachziehen */
+  exhale(ms){ if (this.sample('exhale', .95)) return; this.breath({dur:ms/1000, lp0:1100, lp1:450, hp:180, vol:.6, peakAt:.18}); },      /* lang und locker durch den Mund aus */
   /* Pause vorbei: sanfter Gong aus wenigen Obertönen */
   gong(){
     [[523,.16,3.2],[1046,.06,2.4],[1569,.03,1.6],[784,.05,2.8]].forEach(([f,v,d]) =>
@@ -985,6 +998,7 @@ const Snd = {
 /* iPhone/Safari geben Audio erst nach einem echten Tippen frei: bei jedem Tippen prüfen und ggf. freischalten */
 function sndWake(){
   Snd.unlock(); const c = Snd.ctx; if (!c) return;
+  Snd.load();
   if (c.state !== 'running'){
     c.resume();
     try { const b = c.createBuffer(1, 1, 22050), src = c.createBufferSource(); src.buffer = b; src.connect(c.destination); src.start(0); } catch(e){}
