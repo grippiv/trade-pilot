@@ -19,6 +19,12 @@ const DEFAULT_CHECKS = [
   'Bestätigungssignal ist da – nach Kerzenschluss, nicht davor',
   'Der höhere Zeitrahmen spricht nicht gegen den Trade'
 ];
+const DEFAULT_CHECKS_EN = [
+  'The setup matches my tested strategy exactly',
+  'Price is in my zone now – not already far away',
+  'Confirmation signal is there – after the candle closes, not before',
+  'The higher timeframe does not argue against the trade'
+];
 const DEFAULTS = {maxTrades:2, lossLimit:2, cooldownLoss:15, cooldownWin:5, risk:1, minCRV:2, konto:1000, hebel:5, newsWin:30, usOpenBlock:10,
   strats:['Fair Value Gap','Support & Resistance','Trendfolge'], checks: DEFAULT_CHECKS};
 const freshDefaults = () => Object.assign({}, DEFAULTS, {strats: DEFAULTS.strats.slice(), checks: DEFAULTS.checks.slice()});
@@ -148,7 +154,7 @@ const needsLogin = () => HAS_BACKEND && !LS.get('localMode', false);
    Sprache: Deutsch / Englisch
    Übersetzt alles, was angezeigt wird – Zahlen bleiben erhalten, eigene Eingaben (Coins, Notizen, Strategienamen) bleiben unverändert.
    ================================================================== */
-const I18N_READY = false;   /* auf true, sobald das Wörterbuch vollständig ist */
+const I18N_READY = true;
 let LANG = (() => { const s = LS.get('lang', null); if (s === 'de' || s === 'en') return s; return I18N_READY ? (/^de\b/i.test(navigator.language || 'de') ? 'de' : 'en') : 'de'; })();
 const LOC = () => LANG === 'en' ? 'en-US' : 'de-DE';
 const I18N_EN = {};            // wird unten befüllt
@@ -179,6 +185,7 @@ let i18nObs = null;
 function startI18n(){
   document.documentElement.lang = LANG;
   if (LANG === 'de') return;
+  document.title = 'NoTilt – Trading Checklist & Journal';
   localize(document.body);
   i18nObs = new MutationObserver(muts => {
     for (const m of muts){
@@ -190,6 +197,637 @@ function startI18n(){
   i18nObs.observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS});
 }
 function setLang(l){ LS.set('lang', l); location.reload(); }
+/* ==================================================================
+   Englisches Wörterbuch. Schlüssel = deutscher Text, Zahlen als #.
+   ================================================================== */
+Object.assign(I18N_EN, {
+  /* Start */
+  'Bereit für einen Trade?': 'Ready for a trade?',
+  'Unter einer Minute. Erst die Checkliste, dann der Trade.': 'Under a minute. Checklist first, then the trade.',
+  'TRADEN': 'TRADE',
+  'CHECKLISTE': 'CHECKLIST',
+  'TAGES-CHECK': 'DAILY CHECK',
+  'PAUSE': 'BREAK',
+  'LIMIT': 'LIMIT',
+  'Tages-Check': 'Daily check',
+  'offen': 'open',
+  'Bias': 'Bias',
+  'Trades': 'Trades',
+  'Heute': 'Today',
+  'Session': 'Session',
+  'ruhig': 'quiet',
+  'News': 'News',
+  'Pause': 'Break',
+  'Serie': 'Streak',
+  'Wochenrückblick': 'Weekly review',
+  '# Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.': '# minutes – what worked, what didn\'t? One goal for next week.',
+  'Fokus heute:': 'Focus today:',
+  'Trade ohne Checkliste nachtragen': 'Log a trade without checklist',
+  '„Die Checkliste denkt für dich, wenn die Emotion übernehmen will.“': '“The checklist thinks for you when emotions want to take over.”',
+  '„Ein einzelner Trade ist Zufall. Deine Edge zeigt sich erst über hunderte.“': '“A single trade is random. Your edge only shows over hundreds.”',
+  '„Warte, bis das Setup zu dir kommt – nicht umgekehrt.“': '“Wait for the setup to come to you – not the other way around.”',
+  '„Ein Verlust ist kein Urteil über dich, sondern ein Datenpunkt.“': '“A loss is not a verdict on you – it\'s a data point.”',
+  '„Kein Trade ist auch eine Entscheidung.“': '“No trade is a decision too.”',
+  '„Wer Trading wie ein Business führt, misst seine Zahlen.“': '“If you run trading like a business, you measure your numbers.”',
+
+  /* Navigation */
+  'Start': 'Home',
+  'Journal': 'Journal',
+  'Profil': 'Profile',
+  '← Zurück': '← Back',
+  'Zurück': 'Back',
+  'Abbrechen': 'Cancel',
+  'Weiter': 'Next',
+  'Speichern': 'Save',
+  '✓ Gespeichert': '✓ Saved',
+  'Verstanden': 'Got it',
+  'Später': 'Later',
+  'Fertig': 'Done',
+  'Ja': 'Yes',
+  'Nein': 'No',
+  'An': 'On',
+  'Aus': 'Off',
+  'und': 'and',
+  'Verbinde…': 'Connecting…',
+  'Synchron': 'Synced',
+  'Offline': 'Offline',
+  'Nur dieses Gerät': 'This device only',
+  'Nicht angemeldet': 'Not signed in',
+
+  /* Tages-Check */
+  '◷ Tages-Check · einmal pro Tag': '◷ Daily check · once a day',
+  'Wie ist die Lage heute?': 'What does the market look like today?',
+  'Routine: Was ist die letzten Tage passiert? Daily → #h → #m, Liquidität markieren, News prüfen.': 'Routine: what happened over the last few days? Daily → #h → #m, mark liquidity, check the news.',
+  'Struktur auf Daily / #h (primäre Swing Levels)': 'Structure on daily / #h (major swing levels)',
+  'Bullisch': 'Bullish',
+  'Bärisch': 'Bearish',
+  'Unklar': 'Unclear',
+  'Wichtige News heute (# Sterne)?': 'High-impact news today (# stars)?',
+  'Keine': 'None',
+  'Ja, um …': 'Yes, at …',
+  'Uhrzeit der News': 'Time of the news',
+  'Dein Bias heute': 'Your bias today',
+  'Long': 'Long',
+  'Short': 'Short',
+  'Neutral': 'Neutral',
+  'Fokus-Coins mit Alert (optional, mit Komma)': 'Focus coins with alerts (optional, comma-separated)',
+  'z. B. XRP, SOL, ENA': 'e.g. XRP, SOL, ENA',
+  'Gedanken für heute (optional)': 'Thoughts for today (optional)',
+  'z. B. Montag, erster Börsenstart der Woche – erst beobachten': 'e.g. Monday, first market open of the week – watch first',
+  'Bias speichern': 'Save bias',
+
+  /* Ablauf */
+  'Atmen': 'Breathe',
+  'Kopf': 'Mind',
+  'Setup': 'Setup',
+  'Plan': 'Plan',
+  'Los': 'Go',
+  '◎ Atmen · # Sekunden': '◎ Breathe · # seconds',
+  'Ein tiefer Seufzer': 'One deep sigh',
+  'Durch die Nase einatmen, kurz nachatmen, dann lange durch den Mund aus. Mit Ton kannst du dabei die Augen schließen.': 'Breathe in through your nose, top up with a short second breath, then breathe out slowly through your mouth. With sound on, you can close your eyes.',
+  'Durch die Nase einatmen, kurz nachatmen, dann lange durch den Mund aus.': 'Breathe in through your nose, top up with a short second breath, then breathe out slowly through your mouth.',
+  'Einatmen': 'Breathe in',
+  'Tief einatmen': 'Breathe in deeply',
+  'Nochmal kurz nach': 'One more short breath',
+  'Langsam ausatmen …': 'Breathe out slowly …',
+  'Überspringen': 'Skip',
+  '● Kopf': '● Mind',
+  'Was fühlst du gerade?': 'How are you feeling right now?',
+  'Benenne es ehrlich. Schon das Benennen dämpft die Emotion.': 'Name it honestly. Just naming it calms the emotion.',
+  'Ruhig & klar': 'Calm & clear',
+  'Ungeduldig – will nichts verpassen': 'Impatient – don\'t want to miss out',
+  'Frust nach einem Verlust': 'Frustrated after a loss',
+  'Euphorisch – der wird groß': 'Euphoric – this one\'s going to be big',
+  'Langeweile – will einfach traden': 'Bored – just want to trade',
+  'Nervös / ängstlich': 'Nervous / anxious',
+  'Ruhig': 'Calm',
+  'Nervös': 'Nervous',
+  '▲ Achtung': '▲ Careful',
+  'Angst im Spiel': 'Fear is in play',
+  'Angst lässt dich zu spät rein, zu früh raus oder gar nicht handeln. Meist ist das Risiko zu groß, damit ein Verlust dich kaltlässt.': 'Fear gets you in too late, out too early, or not at all. Usually the risk is too big for a loss to leave you cold.',
+  'Für diesen Trade halbiere ich dein Risiko auf': 'For this trade I\'m cutting your risk in half to',
+  'Lieber nicht': 'Better not',
+  'Mit halbem Risiko weiter': 'Continue with half the risk',
+  '● Setup': '● Setup',
+  'Alles erfüllt?': 'Everything in place?',
+  '▲ Long': '▲ Long',
+  '▼ Short': '▼ Short',
+  'Strategie': 'Strategy',
+  'Du hast das Setup schon bestätigt – Haken sind gesetzt.': 'You already confirmed the setup – the boxes are ticked.',
+  'Etwas fehlt': 'Something\'s missing',
+  'Setup bestätigt': 'Setup confirmed',
+  '⚠ US-Börsenstart (# Uhr) in Reichweite: oft ein kurzer Liquidity Grab.': '⚠ US market open (#) is close: often a quick liquidity grab.',
+  '● Plan': '● Plan',
+  '– Einstieg, Stop, Ziel': '– entry, stop, target',
+  'Coin': 'Coin',
+  'z. B. XRP': 'e.g. XRP',
+  'Einstieg': 'Entry',
+  'Stop-Loss': 'Stop loss',
+  'Ziel': 'Target',
+  'Stop:': 'Stop:',
+  '· Ziel:': '· Target:',
+  'Konto # USDT · Risiko # % · Hebel #x · ändern': 'Account # USDT · Risk # % · Leverage #x · change',
+  'Konto (USDT)': 'Account (USDT)',
+  'Risiko (%)': 'Risk (%)',
+  'Hebel': 'Leverage',
+  'CRV': 'R:R',
+  'Risiko USDT': 'Risk USDT',
+  'Position USDT': 'Position USDT',
+  'Liquidation': 'Liquidation',
+  'Einstieg, Stop und Ziel eintragen.': 'Enter entry, stop and target.',
+  'Long: Stop unter, Ziel über dem Einstieg.': 'Long: stop below, target above the entry.',
+  'Short: Stop über, Ziel unter dem Einstieg.': 'Short: stop above, target below the entry.',
+  'CRV # – dein Minimum ist #': 'R:R # – your minimum is #',
+  'CRV # – dein Minimum ist #.': 'R:R # – your minimum is #.',
+  'Liquidation bei ca. # – vor deinem Stop.': 'Liquidation at about # – before your stop.',
+  'Zu wenig Kapital für diese Position. Hebel oder Risiko anpassen.': 'Not enough capital for this position. Adjust leverage or risk.',
+  'Mehr als # % Risiko – bewusst so?': 'More than # % risk – on purpose?',
+  'Plan ist stimmig.': 'The plan checks out.',
+  'Plan steht': 'Plan is set',
+  'So nicht traden': 'Don\'t trade it like this',
+  '● Los': '● Go',
+  'Wie gut ist das Setup? Jetzt bewerten, nicht erst nach dem Ergebnis.': 'How good is the setup? Rate it now, not after the result.',
+  'Lehrbuch – alles glasklar': 'Textbook – crystal clear',
+  'Gut – kleine Abstriche': 'Good – minor flaws',
+  'Grenzwertig': 'Borderline',
+  'Wenn': 'If',
+  'dann': 'then',
+  'der Kurs gegen mich läuft,': 'price moves against me,',
+  'bleibt der Stop, wo er ist.': 'the stop stays where it is.',
+  'ich früher raus oder nachlegen will,': 'I want to exit early or add to the position,',
+  'tippe ich den Impuls an, statt zu handeln.': 'I tap the impulse instead of acting on it.',
+  'der Trade vorbei ist,': 'the trade is over,',
+  'mache ich # Minuten Pause.': 'I take a # minute break.',
+  'Dein Wochenziel': 'Your weekly goal',
+  'Stop & Ziel gesetzt – ich bin drin': 'Stop & target set – I\'m in',
+  'Doch nicht eingestiegen': 'Didn\'t enter after all',
+
+  /* Im Trade */
+  'Im Trade': 'In trade',
+  'Impuls? Erst hier tippen:': 'Got an urge? Tap here first:',
+  'Stop verschieben': 'Move stop',
+  'Früher raus': 'Exit early',
+  'Position vergrößern': 'Add to position',
+  'Nervös am Chart': 'Nervous at the chart',
+  'Trade beendet?': 'Trade closed?',
+  'Manuell': 'Manual',
+  'Du musst nichts tun. Stop und Ziel arbeiten für dich.': 'You don\'t have to do anything. Stop and target are working for you.',
+  'Ein Verlust schmerzt doppelt so stark wie ein gleich großer Gewinn – deshalb will dein Kopf gleich Dummes tun. Lass ihn reden.': 'A loss hurts twice as much as an equal gain – that\'s why your mind wants to do something dumb. Let it talk.',
+  'Unrealisierter Gewinn ist nicht dein Geld. Halte dich an dein Ziel.': 'Unrealized profit isn\'t your money. Stick to your target.',
+  'Starrst du seit Minuten auf den Chart? Alarm setzen, Handy weg.': 'Been staring at the chart for minutes? Set an alert, put the phone away.',
+  'Der Trade ist im Minus? Normal. Der Stop bleibt, wo er ist.': 'Trade is in the red? Normal. The stop stays where it is.',
+  '⚠ Impuls erkannt': '⚠ Impulse detected',
+  'Merke:': 'Remember:',
+  'Ich bleibe bei meinem Plan': 'I\'m sticking to my plan',
+  'Stop weiter weg schieben?': 'Move the stop further away?',
+  'Das ist Verlustaversion: Du hältst Verlierer zu lange, in der Hoffnung „der dreht schon“.': 'That\'s loss aversion: you hold losers too long, hoping “it\'ll turn around”.',
+  'Du hast einen Plan. Jag deine Verluste nicht weiter ins Minus.': 'You have a plan. Don\'t chase your losses deeper into the red.',
+  'Gewinne früher mitnehmen?': 'Take profits early?',
+  'Die Angst, den Buchgewinn zu verlieren, lässt dich Gewinner zu früh verkaufen. Über hunderte Trades kostet genau das deine Edge.': 'The fear of losing paper profits makes you sell winners too early. Over hundreds of trades, that\'s exactly what costs you your edge.',
+  'Du hast ein Ziel – halte es.': 'You have a target – hold it.',
+  'Position vergrößern?': 'Add to the position?',
+  'Das ist Gier. Dein Risiko war mit dem Plan festgelegt.': 'That\'s greed. Your risk was set with the plan.',
+  'Nervös am Chart?': 'Nervous at the chart?',
+  'Deine Orders sind gesetzt – das reicht.': 'Your orders are in – that\'s enough.',
+  'Handy weg oder Laptop zu. Preisalarme bei Ziel und Stop setzen. Kurzer Spaziergang.': 'Phone away or laptop closed. Set price alerts at target and stop. Take a short walk.',
+  'Der Plan entscheidet, nicht das Gefühl.': 'The plan decides, not the feeling.',
+
+  /* Nach dem Trade */
+  '● Nach dem Trade': '● After the trade',
+  'Ziel erreicht': 'Target hit',
+  'Stop getroffen – ein Datenpunkt': 'Stop hit – one data point',
+  'Manuell geschlossen': 'Closed manually',
+  'Ergebnis in R': 'Result in R',
+  'z. B. #': 'e.g. #',
+  'An welche Regeln hast du dich gehalten? Antippen, was du gebrochen hast.': 'Which rules did you follow? Tap the ones you broke.',
+  'Bedingungen': 'Conditions',
+  'War ein Fehler dabei? (optional, ehrlich hilft dir am meisten)': 'Any mistakes? (optional – honesty helps you most)',
+  'FOMO-Einstieg': 'FOMO entry',
+  'Zu früh raus': 'Exited too early',
+  'Stop verschoben': 'Moved stop',
+  'Position zu groß': 'Position too big',
+  'Nachgelegt': 'Added to position',
+  'Kein echtes Setup': 'No real setup',
+  'Revenge-Trade': 'Revenge trade',
+  '# % besser beim nächsten Mal (optional)': '# % better next time (optional)',
+  'z. B. auf Kerzenschluss warten': 'e.g. wait for the candle close',
+  'Chart-Screenshots (optional)': 'Chart screenshots (optional)',
+  '＋ Bild auswählen': '＋ Choose image',
+  '# ausgewählt': '# selected',
+  'Screenshots speichern geht mit Konto.': 'Saving screenshots requires an account.',
+  'Chart-Link (optional, z. B. TradingView)': 'Chart link (optional, e.g. TradingView)',
+  'Chart-Link': 'Chart link',
+  '◎ Pause': '◎ Break',
+  'Handy weg. Kurz raus.': 'Phone away. Step outside.',
+  'Gespeichert. Kein Übermut-Trade.': 'Saved. No overconfidence trade.',
+  'Du bist noch in der Pause.': 'You\'re still on your break.',
+  'Nach Verlusten steigt die Risikobereitschaft messbar. Die Pause schützt dich davor.': 'After losses, risk-taking measurably goes up. The break protects you from that.',
+  'Auch nach Gewinnen: Der nächste Trade kommt nur über die Checkliste.': 'After wins too: the next trade only goes through the checklist.',
+  '✓ Plan eingehalten – das zählt, nicht das Ergebnis.': '✓ Plan followed – that\'s what counts, not the result.',
+
+  /* Stopps */
+  '■ Kein Trade': '■ No trade',
+  'Langeweile ist kein Setup': 'Boredom is not a setup',
+  'Du willst traden, weil du etwas tun willst – nicht, weil dein System ein Setup zeigt.': 'You want to trade because you want to do something – not because your system shows a setup.',
+  'Ein erzwungenes, mittelmäßiges Setup ist meistens der teuerste Trade des Tages.': 'A forced, mediocre setup is usually the most expensive trade of the day.',
+  'Revenge-Trading-Gefahr': 'Revenge trading risk',
+  'Nach Verlusten gehen Trader nachweislich mehr Risiko ein. Genau jetzt ist der schlechteste Moment für den nächsten Trade.': 'After losses, traders demonstrably take more risk. Right now is the worst moment for the next trade.',
+  'Erst Abstand gewinnen: Laptop zu, kurz raus, dann mit klarem Kopf neu bewerten.': 'Get some distance first: laptop shut, step outside, then reassess with a clear head.',
+  'FOMO erkannt': 'FOMO detected',
+  'Die Angst, etwas zu verpassen, macht dich fast immer zum Käufer kurz vor der Umkehr.': 'The fear of missing out almost always makes you the buyer right before the reversal.',
+  'FOMO ist ein alter Herden-Instinkt. Am Finanzmarkt macht er dich zum Käufer am Hoch.': 'FOMO is an old herd instinct. In financial markets it makes you the buyer at the top.',
+  'Gier am Steuer': 'Greed at the wheel',
+  '„Der wird sicher groß“ führt zu zu großen Positionen und Setups, die dein System nie traden würde.': '“This one\'s definitely going to be big” leads to oversized positions and setups your system would never trade.',
+  'Gier fühlt sich im Moment wie ein guter Instinkt an. Deshalb entscheidet die Checkliste, nicht das Gefühl.': 'Greed feels like a good instinct in the moment. That\'s why the checklist decides, not the feeling.',
+  'Bias heute: neutral': 'Bias today: neutral',
+  'Dein Tages-Check sagt: keine klare Richtung. Heute kein Trade – und das ist völlig in Ordnung.': 'Your daily check says: no clear direction. No trade today – and that\'s completely fine.',
+  'Keine klare Richtung ist ein vollkommen gültiges Ergebnis. Abwarten ist auch eine Position.': 'No clear direction is a perfectly valid result. Waiting is a position too.',
+  'Gegen deinen Bias': 'Against your bias',
+  'Du willst gegen die Richtung deines Tages-Checks traden.': 'You want to trade against the direction of your daily check.',
+  'Der Bias entscheidet, in welche Richtung du suchst. Hat sich der Markt klar gedreht, mach den Tages-Check neu – aber nicht mitten im Impuls.': 'Your bias decides which direction you look for. If the market has clearly turned, redo the daily check – but not in the middle of an impulse.',
+  'Setup unvollständig': 'Setup incomplete',
+  'Mindestens eine Bedingung deines Systems ist nicht erfüllt. Kein Trade.': 'At least one condition of your system isn\'t met. No trade.',
+  'Nicht alles abgehakt heißt: kein Trade. Alarm setzen und warten.': 'Not everything ticked means: no trade. Set an alert and wait.',
+  'Chance-Risiko zu schlecht': 'Risk-reward too poor',
+  'Dein Ziel ist im Verhältnis zum Stop zu nah.': 'Your target is too close relative to your stop.',
+  'Nur Trades mit klarem Mindest-CRV.': 'Only trades with a clear minimum R:R.',
+  'Liquidation vor dem Stop': 'Liquidation before the stop',
+  'Mit diesem Hebel wirst du liquidiert, bevor dein Stop überhaupt greift.': 'With this leverage you get liquidated before your stop even triggers.',
+  'Weniger Hebel oder engerer Stop.': 'Less leverage or a tighter stop.',
+  'Trade-Limit für heute erreicht': 'Trade limit reached for today',
+  'Du hast heute so viele Trades gemacht, wie du dir vorgenommen hast.': 'You\'ve made as many trades today as you planned.',
+  'Mehr Trades, als dein System hergibt, heißt: Du tradest Gefühle, nicht Setups.': 'More trades than your system gives you means you\'re trading feelings, not setups.',
+  'Verlust-Limit für heute erreicht': 'Daily loss limit reached',
+  'Du hast heute dein maximales Minus erreicht. Für heute ist Schluss.': 'You\'ve hit your maximum loss for today. That\'s it for today.',
+  'Nach Verlusten steigt die Risikobereitschaft – genau dann schützt dich eine harte Grenze.': 'After losses, risk-taking goes up – that\'s exactly when a hard limit protects you.',
+  'News-Fenster': 'News window',
+  'News um # Uhr. Kein neuer Trade # Minuten davor und danach.': 'News at #. No new trade # minutes before and after.',
+  'Bei News: erst #–# Minuten abwarten und beobachten.': 'With news: wait and watch for #–# minutes first.',
+  'US-Börsenstart läuft': 'US market open in progress',
+  'Die US-Börse hat um # Uhr geöffnet. In den ersten # Minuten keine neuen Trades.': 'The US stock market opened at # (your time). No new trades in the first # minutes.',
+  'Die ersten Minuten nach dem Börsenstart sind oft hektisch und täuschen. Erst beobachten, dann handeln.': 'The first minutes after the open are often hectic and misleading. Watch first, then act.',
+  '# Minuten Pause gestartet.': '# minute break started.',
+  'Tages-Check neu machen': 'Redo daily check',
+
+  /* Journal */
+  '● Journal': '● Journal',
+  'Übersicht': 'Overview',
+  'Trades (#)': 'Trades (#)',
+  'Alles': 'All',
+  'Alle Strategien': 'All strategies',
+  '# Tage': '# days',
+  '# Tag': '# day',
+  'Treffer': 'Win rate',
+  'Ø R / Trade': 'Avg R / trade',
+  'Profit-Faktor': 'Profit factor',
+  'Netto R': 'Net R',
+  'Regeltreue': 'Rule adherence',
+  'Kapitalkurve in R': 'Equity curve in R',
+  'Erkenntnisse': 'Insights',
+  'Edge oder Zufall?': 'Edge or luck?',
+  'Dein Ø liegt mit # % Wahrscheinlichkeit zwischen': 'With # % probability, your average lies between',
+  'pro Trade.': 'per trade.',
+  'Edge belegt': 'Edge confirmed',
+  '– selbst im ungünstigen Fall liegst du im Plus.': '– even in the worst case you\'re in profit.',
+  'So verliert das System': 'This system is losing',
+  '– auch im günstigen Fall liegt der Ø unter null.': '– even in the best case, the average is below zero.',
+  'Noch offen': 'Still open',
+  '– ca. # weitere Trades nötig, bis das Ergebnis kein Zufall mehr sein kann.': '– about # more trades needed before the result can\'t be luck anymore.',
+  '– ca. sehr viele weitere Trades nötig, bis das Ergebnis kein Zufall mehr sein kann.': '– a lot more trades needed before the result can\'t be luck anymore.',
+  '– mehr Trades nötig, bis das Ergebnis kein Zufall mehr sein kann.': '– more trades needed before the result can\'t be luck anymore.',
+  'Ab # Trades zeigt dir die App, in welcher Spanne dein echter Ø R pro Trade wahrscheinlich liegt.': 'From # trades on, the app shows you the range your true average R per trade most likely falls in.',
+  'Ab # Trades rechnet die App, ab etwa #–# wird es belastbar.': 'The app starts calculating at # trades; from about #–# it becomes reliable.',
+  'Teuerster Fehler:': 'Costliest mistake:',
+  'Teuerster Fehler': 'Costliest mistake',
+  '– #× · kostet dich ca.': '– #× · costs you about',
+  '– #× · kostet dich geschätzt': '– #× · costs you an estimated',
+  'Plan gehalten: Ø': 'Plan followed: avg',
+  '· Plan gebrochen: Ø': '· Plan broken: avg',
+  'Ruhig getradet: Ø': 'Traded calm: avg',
+  '· Nervös: Ø': '· Nervous: avg',
+  'Mit Checkliste: Ø': 'With checklist: avg',
+  '· Ohne: Ø': '· Without: avg',
+  'Trades mit Impulsen: Ø': 'Trades with impulses: avg',
+  '· ohne: Ø': '· without: avg',
+  'Am häufigsten gebrochen:': 'Most often broken:',
+  'Von der Checkliste verhinderte Trades:': 'Trades prevented by the checklist:',
+  'Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.': 'Once there are a few trades per group, the app shows you what works for you – e.g. plan followed vs. broken, S vs. B setups, calm vs. nervous.',
+  'Keine Trades in diesem Zeitraum. Trades aus der Checkliste landen hier automatisch – andere kannst du nachtragen.': 'No trades in this period. Trades from the checklist land here automatically – you can log others manually.',
+  '+ Trade nachtragen': '+ Log trade',
+  '⇩ Von Börse importieren': '⇩ Import from exchange',
+  'CSV exportieren': 'Export CSV',
+  'ohne Checkliste': 'without checklist',
+  'nachgetragen': 'logged manually',
+  '✎ Trade bearbeiten': '✎ Edit trade',
+  'Für Trades ohne Checkliste. Sie zählen in deine Statistik, damit sie ehrlich bleibt.': 'For trades without the checklist. They count in your stats so they stay honest.',
+  'Datum': 'Date',
+  'Richtung': 'Direction',
+  'Ergebnis': 'Result',
+  'Regeln eingehalten': 'Rules followed',
+  'Regel gebrochen': 'Rule broken',
+  'Fehler': 'Mistakes',
+  'Notiz': 'Note',
+  'Trade löschen': 'Delete trade',
+  'Nochmal tippen zum Löschen': 'Tap again to delete',
+  'Hinzufügen': 'Add',
+
+  /* Import */
+  '⇩ Trades importieren': '⇩ Import trades',
+  'Von der Börse übernehmen': 'Import from your exchange',
+  'Exportiere deinen Verlauf als CSV und wähle die Datei hier aus. Funktioniert mit Bitget, Binance und den meisten anderen Börsen.': 'Export your history as CSV and select the file here. Works with Bitget, Binance and most other exchanges.',
+  '＋ CSV-Datei auswählen': '＋ Choose CSV file',
+  'Wo finde ich den Export?': 'Where do I find the export?',
+  '(am Computer): Aufträge → Futures → Positions- oder Auftragsverlauf → Herunterladen. Alternativ im Profil unter „Datenexport“.': '(on desktop): Orders → Futures → Position or order history → Download. Alternatively in your profile under “Data export”.',
+  ': Aufträge → USDⓈ-M-Futures → Handelsverlauf → Exportieren.': ': Orders → USDⓈ-M Futures → Trade history → Export.',
+  'Die Menünamen können sich je nach Version leicht unterscheiden.': 'Menu names may differ slightly depending on the version.',
+  'Trades gefunden · Teil-Ausführungen zusammengefasst': 'trades found · partial fills combined',
+  '# Trades': '# trades',
+  '# – # · zusammen': '# – # · total',
+  'Zeitpunkt *': 'Time *',
+  'Coin / Kontrakt': 'Coin / contract',
+  'Gewinn/Verlust (USDT) *': 'Profit/loss (USDT) *',
+  'Gebühr (optional)': 'Fee (optional)',
+  'Gebühren abziehen': 'Deduct fees',
+  '# R entspricht (USDT)': '# R equals (USDT)',
+  'Dein Risiko pro Trade in USDT. Daraus wird jeder Gewinn oder Verlust in R umgerechnet – so sind alte und neue Trades vergleichbar.': 'Your risk per trade in USDT. Every profit or loss is converted into R from this – so old and new trades are comparable.',
+  'Importierte Trades zählen in deine Statistik. Für Regeltreue und Serie zählen sie nicht – dafür fehlen die Angaben aus der Checkliste. Du kannst sie einzeln nachpflegen.': 'Imported trades count in your stats. They don\'t count toward rule adherence and streak – the checklist details are missing. You can fill them in one by one.',
+  'Ordne mindestens Zeitpunkt und Gewinn/Verlust einer Spalte zu.': 'Map at least time and profit/loss to a column.',
+  '# Trades importieren': 'Import # trades',
+  'Keine neuen Trades gefunden – alles schon im Journal.': 'No new trades found – everything\'s already in the journal.',
+
+  /* Profil */
+  '● Profil': '● Profile',
+  'Wie stehst du da?': 'Where do you stand?',
+  'Ergebnis': 'Result',
+  'vom Startkonto': 'of starting account',
+  'Max. Drawdown': 'Max drawdown',
+  'Größter Rückgang vom Hoch:': 'Largest drop from the peak:',
+  '(≈ # USDT) · du stehst am Hoch. Längste Serie: # Gewinne, # Verluste in Folge.': '(≈ # USDT) · you\'re at your peak. Longest streak: # wins, # losses in a row.',
+  '(≈ # USDT) · aktuell # R unter dem Hoch. Längste Serie: # Gewinne, # Verluste in Folge.': '(≈ # USDT) · currently # R below the peak. Longest streak: # wins, # losses in a row.',
+  'Stärken & Schwächen': 'Strengths & weaknesses',
+  'Ab ein paar Trades pro Strategie, Coin und Tageszeit siehst du hier, wo deine Edge liegt.': 'Once you have a few trades per strategy, coin and time of day, you\'ll see here where your edge is.',
+  'Tageszeit': 'Time of day',
+  'Nacht': 'Night',
+  'Asien': 'Asia',
+  'Kalender': 'Calendar',
+  'Vorheriger Monat': 'Previous month',
+  'Nächster Monat': 'Next month',
+  'Monat:': 'Month:',
+  'Keine Trades in diesem Monat.': 'No trades this month.',
+  'Woche auswerten und ein Ziel festlegen': 'Review the week and set a goal',
+  'Zum Journal': 'To journal',
+  'Disziplin': 'Discipline',
+  'Regeltreue # Tage': 'Rule adherence # days',
+  'Noch zu wenige Trades für ein Urteil': 'Not enough trades for a verdict yet',
+  'Noch nicht profitabel': 'Not profitable yet',
+  'Du tradest nachweislich profitabel': 'You\'re provably profitable',
+  'Profitabel und regelkonform – genau so soll es sein.': 'Profitable and by the rules – exactly how it should be.',
+  'Plus trotz Regelbrüchen. Vorsicht: Glück wiederholt sich nicht zuverlässig.': 'In profit despite broken rules. Careful: luck doesn\'t repeat reliably.',
+  'Minus trotz sauberer Umsetzung – das ist normale Schwankung, dein Prozess stimmt.': 'In the red despite clean execution – that\'s normal variance, your process is right.',
+  'Minus mit Regelbrüchen – hier liegt dein größter Hebel.': 'In the red with broken rules – this is your biggest lever.',
+  'Diese Woche keine Trades – auch das kann die richtige Entscheidung sein.': 'No trades this week – that can be the right decision too.',
+  'Noch zu wenige Wochen für einen Vergleich mit deinem Durchschnitt. Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.': 'Not enough weeks yet to compare with your average. One week alone says little – what matters is the range over many trades.',
+  'Spanne # bis # R pro Trade.': 'Range # to # R per trade.',
+  'Spanne # bis # R pro Trade · ca. sehr viele weitere Trades bis zur Gewissheit.': 'Range # to # R per trade · a lot more trades needed for certainty.',
+  '≈ # R': '≈ # R',
+  '≈ # USDT · # %': '≈ # USDT · # %',
+  '≈ # USDT · # Trades': '≈ # USDT · # trades',
+  '# R · # Trades': '# R · # trades',
+
+  /* Serie */
+  '◆ Disziplin-Serie': '◆ Discipline streak',
+  '# Tage in Folge': '# days in a row',
+  'Rekord #': 'Record #',
+  '· Rekord #': '· Record #',
+  'Ein Tag zählt, wenn du vor dem Traden den Tages-Check gemacht und dich bei jedem Trade an deine Regeln gehalten hast. Gewinne spielen keine Rolle – nur dein Verhalten.': 'A day counts if you did the daily check before trading and followed your rules on every trade. Profits don\'t matter – only your behavior.',
+  'Tage ohne Trade zählen nicht gegen dich. Nicht zu traden ist nie ein Fehler.': 'Days without trades don\'t count against you. Not trading is never a mistake.',
+  'Pro Woche fängt': 'Each week,',
+  'ein Joker': 'one joker',
+  'einen Ausrutscher ab – diese Woche ist er noch frei. Rekord:': 'covers one slip – this week it\'s still available. Record:',
+  'einen Ausrutscher ab – diese Woche ist er schon verbraucht. Rekord:': 'covers one slip – this week it\'s already used. Record:',
+  'Disziplin-Serie:': 'Discipline streak:',
+
+  /* Wochenrückblick */
+  '◷ Wochenrückblick · # Minuten': '◷ Weekly review · # minutes',
+  'Deine Woche': 'Your week',
+  'Dein teuerster Fehler (# Tage)': 'Your costliest mistake (# days)',
+  'Markier nach jedem Trade, ob ein Fehler dabei war – dann zeigt dir der Rückblick, welcher dich am meisten kostet.': 'Mark after each trade whether there was a mistake – then the review shows you which one costs you the most.',
+  'Ein Ziel für nächste Woche': 'One goal for next week',
+  'Nur eins. Als Wenn-dann-Plan – so wird es im entscheidenden Moment automatisch abgerufen.': 'Just one. As an if-then plan – that way it kicks in automatically at the decisive moment.',
+  'Wenn …': 'If …',
+  '… dann …': '… then …',
+  'Ziel festlegen': 'Set goal',
+  'Teilweise': 'Partly',
+  'Regel brechen': 'Break a rule',
+
+  /* Einstellungen */
+  '⚙︎ Einstellungen': '⚙︎ Settings',
+  'Deine Regeln': 'Your rules',
+  'Einmal in Ruhe festlegen, nicht mitten im Trade.': 'Set them once, calmly – not in the middle of a trade.',
+  'Deine Strategien': 'Your strategies',
+  '# Fragen ✎': '# questions ✎',
+  '+ Strategie hinzufügen': '+ Add strategy',
+  'Deine Grenzen': 'Your limits',
+  'Max. Trades pro Tag': 'Max trades per day',
+  'Max. Verlust pro Tag (R)': 'Max loss per day (R)',
+  'Min. Chance-Risiko (CRV)': 'Min risk-reward (R:R)',
+  'Risiko pro Trade (%)': 'Risk per trade (%)',
+  'Standard-Hebel': 'Default leverage',
+  'Kontostand (USDT)': 'Account balance (USDT)',
+  'Pause nach Verlust (Min.)': 'Break after loss (min)',
+  'Pause nach Gewinn (Min.)': 'Break after win (min)',
+  'Abstand zu News (Min.)': 'Distance to news (min)',
+  'Sperre nach US-Börsenstart (Min.)': 'Lock after US market open (min)',
+  'Sprache / Language': 'Language / Sprache',
+  'Design': 'Design',
+  'Cyan (Standard)': 'Cyan (default)',
+  'Gold': 'Gold',
+  'Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)': 'Sounds (breathing, break over, stop, plan followed)',
+  '▶ Ton testen': '▶ Test sound',
+  'Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.': 'On iPhone: silent switch off and volume up.',
+  'Journal & Daten löschen': 'Delete journal & data',
+  'Wirklich? Alles wird gelöscht – nochmal tippen': 'Really? Everything will be deleted – tap again',
+  'Backup': 'Backup',
+  'Backup speichern': 'Save backup',
+  'Backup laden': 'Load backup',
+  'Das ist keine gültige NoTilt-Backup-Datei.': 'That\'s not a valid NoTilt backup file.',
+  'Backup geladen ✓': 'Backup loaded ✓',
+  'NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.': 'NoTilt is a tool for discipline and self-observation – not investment advice. Leveraged crypto trading can lead to the total loss of your capital.',
+  'Impressum': 'Legal notice',
+  'Datenschutz': 'Privacy',
+
+  /* Erinnerung */
+  'Erinnerung': 'Reminder',
+  'Feste Zeit, fester Auslöser:': 'Fixed time, fixed trigger:',
+  'es # Uhr ist und ich an die Charts gehe,': 'it\'s # and I open the charts,',
+  'mache ich zuerst den Tages-Check.': 'I do the daily check first.',
+  'Uhrzeit': 'Time',
+  'Tage': 'Days',
+  'Mo': 'Mon', 'Di': 'Tue', 'Mi': 'Wed', 'Do': 'Thu', 'Fr': 'Fri', 'Sa': 'Sat', 'So': 'Sun',
+  'So # Uhr': 'Sun #:00',
+  'Push-Erinnerung aktivieren': 'Turn on push reminder',
+  'Erinnerung aktualisieren': 'Update reminder',
+  'Erinnerung ausschalten': 'Turn off reminder',
+  'Test senden': 'Send test',
+  'Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.': 'Active ✓ You\'ll get the reminder at the chosen time.',
+  'Gesendet – kommt gleich an.': 'Sent – arriving shortly.',
+  'Kein aktives Gerät gefunden. Aktiviere die Erinnerung auf diesem Gerät erneut.': 'No active device found. Turn the reminder on again on this device.',
+  'Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für NoTilt.': 'Notifications are blocked. Allow them for NoTilt in your device settings.',
+  'Erinnerungen brauchen ein Konto.': 'Reminders need an account.',
+  'Melde dich an, um Erinnerungen zu nutzen.': 'Sign in to use reminders.',
+  'Dieser Browser unterstützt keine Push-Nachrichten.': 'This browser doesn\'t support push notifications.',
+  'Am iPhone: erst über Teilen → „Zum Home-Bildschirm“ installieren, dann hier aktivieren.': 'On iPhone: first install via Share → “Add to Home Screen”, then turn it on here.',
+
+  /* Strategien */
+  'Welche Strategien tradest du?': 'Which strategies do you trade?',
+  'Tipp alle an, die du nutzt. Jede bekommt ihre eigene Checkliste – die kannst du gleich anpassen.': 'Tap all the ones you use. Each gets its own checklist – you can adjust it right away.',
+  'Eigene Strategie': 'Custom strategy',
+  'Von null selbst beschreiben': 'Describe it from scratch',
+  'Deine eigene Strategie': 'Your own strategy',
+  'Name': 'Name',
+  'z. B. Orderblock-Retest': 'e.g. Order block retest',
+  'Was muss erfüllt sein, bevor du einsteigst?': 'What has to be true before you enter?',
+  'Das werden deine Fragen vor jedem Trade. Kurz und mit Ja/Nein zu beantworten – am besten # bis #': 'These become your questions before every trade. Short and answerable with yes/no – ideally # to #',
+  'Das werden deine Fragen vor jedem Trade. Kurz und mit Ja/Nein zu beantworten – am besten # bis #.': 'These become your questions before every trade. Short and answerable with yes/no – ideally # to #.',
+  'z. B. Kurs ist an meiner Zone': 'e.g. Price is at my zone',
+  'Bedingung entfernen': 'Remove condition',
+  '+ Bedingung hinzufügen': '+ Add condition',
+  'Wohin kommt dein Stop?': 'Where does your stop go?',
+  'z. B. hinter das letzte Tief': 'e.g. behind the last low',
+  'Wo ist dein Ziel?': 'Where is your target?',
+  'z. B. nächstes Hoch': 'e.g. next high',
+  'Gib der Strategie einen Namen.': 'Give the strategy a name.',
+  'Trag mindestens # Bedingungen ein – sonst ist es keine Checkliste.': 'Enter at least # conditions – otherwise it\'s not a checklist.',
+  'Diesen Namen gibt es schon.': 'That name already exists.',
+  'Nächste Strategie': 'Next strategy',
+  'Deine Grundregeln': 'Your basic rules',
+  'Die App hält dich an diese Grenzen – vor allem dann, wenn du es selbst gerade nicht willst.': 'The app holds you to these limits – especially when you don\'t want it to.',
+  'Faustregel: #–# % Risiko pro Trade. So überstehst du auch eine Pechsträhne von # Verlusten.': 'Rule of thumb: #–# % risk per trade. That way you survive a losing streak of # trades too.',
+  'Mindest-CRV': 'Minimum R:R',
+  'Los geht\'s': 'Let\'s go',
+  '● Einrichtung #/#': '● Setup #/#',
+  '● Einrichtung #/# · Strategie #/#': '● Setup #/# · Strategy #/#',
+  '● Strategie': '● Strategy',
+  '● Neue Strategie': '● New strategy',
+  'Strategie bearbeiten': 'Edit strategy',
+  'Strategie löschen': 'Delete strategy',
+  'Nochmal tippen – Trades bleiben im Journal': 'Tap again – trades stay in the journal',
+  'Womit möchtest du starten?': 'What would you like to start with?',
+  'Trendfolge': 'Trend Following',
+  'Fair Value Gap': 'Fair Value Gap',
+  'Support & Resistance': 'Support & Resistance',
+  'Trendfolge / Breakout': 'Trend Following / Breakout',
+  'Pullback': 'Pullback',
+  'Range': 'Range',
+  'Liquidity Sweep': 'Liquidity Sweep',
+  'Rücksetzer in eine Preislücke': 'Pullback into a price gap',
+  'Reaktion an einer wichtigen Zone': 'Reaction at a key zone',
+  'Mitfahren, wenn ein Level bricht': 'Ride along when a level breaks',
+  'Einstieg im Rücksetzer eines Trends': 'Entry on a pullback within a trend',
+  'Seitwärtsmarkt von Rand zu Rand': 'Sideways market, edge to edge',
+  'Fehlausbruch über ein offensichtliches Level': 'False break of an obvious level',
+  /* deutsche Vorlagen-Texte (für alte Konten mit deutschen Strategien) */
+  'Die Lücke liegt in Richtung des Trends auf dem höheren Zeitrahmen': 'The gap is in the direction of the higher-timeframe trend',
+  'Der Kurs ist jetzt zurück in der Lücke': 'Price is back inside the gap now',
+  'Reaktion mit Bestätigungskerze – nach Kerzenschluss': 'Reaction with a confirmation candle – after the candle closes',
+  'Bis zum Ziel liegt kein starkes Hindernis': 'No strong obstacle between entry and target',
+  'Hinter der Kerze, die die Lücke erzeugt hat': 'Behind the candle that created the gap',
+  'Nächstes Hoch bzw. Tief mit Liquidität': 'Next high or low with liquidity',
+  'Das Setup entspricht genau meiner getesteten Strategie': 'The setup matches my tested strategy exactly',
+  'Der Kurs ist jetzt in meiner Zone – nicht schon weit weg': 'Price is in my zone now – not already far away',
+  'Bestätigungssignal ist da – nach Kerzenschluss, nicht davor': 'Confirmation signal is there – after the candle closes, not before',
+  'Der höhere Zeitrahmen spricht nicht gegen den Trade': 'The higher timeframe does not argue against the trade',
+
+  /* Konto */
+  '● Konto': '● Account',
+  'Willkommen bei NoTilt': 'Welcome to NoTilt',
+  'Melde dich an, damit dein Journal auf allen Geräten gleich ist.': 'Sign in so your journal is the same on all your devices.',
+  'Konto erstellen': 'Create account',
+  'Mit Konto sind Journal und Einstellungen auf Mac und iPhone synchron.': 'With an account, your journal and settings stay in sync across all your devices.',
+  'Passwort vergessen': 'Forgot password',
+  'Wir schicken dir einen Link, mit dem du ein neues Passwort setzt.': 'We\'ll send you a link to set a new password.',
+  'Neues Passwort': 'New password',
+  'Wähle ein neues Passwort mit mindestens # Zeichen.': 'Choose a new password with at least # characters.',
+  'E-Mail': 'Email',
+  'Passwort': 'Password',
+  'Anmelden': 'Sign in',
+  'Link senden': 'Send link',
+  'Passwort speichern': 'Save password',
+  'Neu hier? Konto erstellen': 'New here? Create an account',
+  'Passwort vergessen?': 'Forgot your password?',
+  'Ich habe schon ein Konto': 'I already have an account',
+  'Ohne Konto nutzen (nur dieses Gerät)': 'Use without an account (this device only)',
+  'E-Mail oder Passwort stimmt nicht.': 'Email or password is incorrect.',
+  'Bitte bestätige zuerst deine E-Mail (Link im Postfach).': 'Please confirm your email first (link in your inbox).',
+  'Diese E-Mail hat schon ein Konto. Melde dich an.': 'This email already has an account. Sign in.',
+  'Das Passwort braucht mindestens # Zeichen.': 'The password needs at least # characters.',
+  'Zu viele Versuche. Warte kurz und probier es dann nochmal.': 'Too many attempts. Wait a moment and try again.',
+  'Keine Verbindung. Prüf dein Internet.': 'No connection. Check your internet.',
+  'Fast geschafft: Wir haben dir eine E-Mail geschickt. Bestätige den Link und melde dich dann hier an.': 'Almost done: we\'ve sent you an email. Confirm the link, then sign in here.',
+  'Wenn es ein Konto mit dieser E-Mail gibt, ist der Link jetzt unterwegs.': 'If there\'s an account with this email, the link is on its way.',
+  'Konto': 'Account',
+  'Angemeldet als': 'Signed in as',
+  'Abmelden': 'Sign out',
+  'Konto löschen': 'Delete account',
+  'Nicht angemeldet – deine Daten liegen nur auf diesem Gerät.': 'Not signed in – your data is only on this device.',
+  'Anmelden oder Konto erstellen': 'Sign in or create account',
+  'Synchron mit deinen anderen Geräten': 'In sync with your other devices',
+  'Erst online gehen – Änderungen nicht hochgeladen': 'Go online first – changes not uploaded yet',
+  "Mit # % Wahrscheinlichkeit verdienst du zwischen # und # R pro Trade.": "With # % probability you earn between # and # R per trade.",
+  "Dein Ø liegt mit # % Wahrscheinlichkeit zwischen # und # R pro Trade.": "With # % probability your average lies between # and # R per trade.",
+  "Aktuell nicht profitabel": "Currently not profitable",
+  "Im Plus – aber noch nicht sicher": "In profit – but not certain yet",
+  "Deutlich besser als deine übliche Woche (Ø # R).": "Clearly better than your usual week (avg # R).",
+  "Schwächer als deine übliche Woche (Ø # R) – prüf, ob es am Markt oder an dir lag.": "Weaker than your usual week (avg # R) – check whether it was the market or you.",
+  "Deine Charts der Woche": "Your charts of the week",
+  "Fertig: # Trades übernommen, Einstellungen geladen.": "Done: # trades imported, settings loaded.",
+  "Löschen fehlgeschlagen – später nochmal": "Delete failed – try again later",
+  "Die Datei enthält keine lesbaren Zeilen.": "The file contains no readable rows.",
+  "Gerade keine Verbindung – Änderungen werden später hochgeladen": "No connection right now – changes will be uploaded later",
+  "– # nötig, bis das Ergebnis kein Zufall mehr sein kann.": "– # needed before the result can't be luck anymore.",
+  "Das hat nicht geklappt:": "That didn't work:",
+  "Die Zone hat in der Vergangenheit klar reagiert": "The zone has clearly reacted in the past",
+  "Der Kurs ist jetzt in der Zone – nicht schon weit weg": "Price is in the zone now – not already far away",
+  "Bestätigungskerze: Hammer, Engulfing oder Schluss über/unter der Zone": "Confirmation candle: hammer, engulfing or close above/below the zone",
+  "Der höhere Zeitrahmen spricht nicht dagegen": "The higher timeframe does not argue against it",
+  "Hinter der Zone plus etwas Puffer": "Behind the zone plus a little buffer",
+  "Nächste gegenüberliegende Zone": "Next opposite zone",
+  "Klarer Trend: höhere Hochs und Tiefs (bzw. tiefere)": "Clear trend: higher highs and lows (or lower)",
+  "Ausbruch mit Kerzenschluss über bzw. unter dem Level": "Breakout with a candle close above or below the level",
+  "Direkt vor dem Kurs liegt kein großer Widerstand": "No major resistance right in front of price",
+  "Momentum oder Volumen bestätigt den Ausbruch": "Momentum or volume confirms the breakout",
+  "Hinter dem letzten Swing": "Behind the last swing",
+  "Nachziehender Stop oder festes CRV": "Trailing stop or fixed R:R",
+  "Der Trend auf dem höheren Zeitrahmen ist intakt": "The higher-timeframe trend is intact",
+  "Der Kurs setzt an eine Zone oder gleitende Linie zurück": "Price pulls back to a zone or moving average",
+  "Umkehrsignal nach Kerzenschluss": "Reversal signal after the candle closes",
+  "Die Struktur ist nicht gebrochen": "Structure is not broken",
+  "Unter bzw. über dem Tief des Rücksetzers": "Below or above the pullback low/high",
+  "Letztes Hoch bzw. Tief des Trends": "Last high or low of the trend",
+  "Die Range ist klar: oben und unten mindestens zweimal berührt": "The range is clear: top and bottom touched at least twice",
+  "Der Kurs ist am Rand der Range – nicht in der Mitte": "Price is at the edge of the range – not in the middle",
+  "Ablehnung am Rand nach Kerzenschluss": "Rejection at the edge after the candle closes",
+  "Kein Ausbruch auf dem höheren Zeitrahmen": "No breakout on the higher timeframe",
+  "Knapp außerhalb der Range": "Just outside the range",
+  "Mitte oder andere Seite der Range": "Middle or other side of the range",
+  "Offensichtliches Hoch bzw. Tief mit Stops dahinter": "Obvious high or low with stops behind it",
+  "Docht holt die Liquidität und schließt wieder zurück": "A wick takes the liquidity and closes back inside",
+  "Strukturbruch auf dem kleineren Zeitrahmen": "Structure break on the lower timeframe",
+  "Einstieg im Rücksetzer, nicht im Impuls": "Entry on the pullback, not in the impulse",
+  "Hinter dem Docht des Sweeps": "Behind the wick of the sweep",
+  "Gegenüberliegende Liquidität": "Opposite liquidity"
+});
+
+/* Zusammengesetzte Texte mit eigenen Inhalten (Coin, Strategie, Wochenziel) */
+I18N_PARTS.push(
+  [/^(\s*)Im Trade · /, '$1In trade · '],
+  [/ · Einstieg /g, ' · Entry '], [/ · Ziel /g, ' · Target '],
+  [/^(\s*)Nach Setup-Note:/, '$1By setup grade:'], [/^(\s*)Nach Strategie:/, '$1By strategy:'],
+  [/^(\s*)Letzte Woche wolltest du: „Wenn (.*), dann (.*)\.“ Hat das geklappt\?/, '$1Last week you wanted: “If $2, then $3.” Did it work?'],
+  [/^(\s*)Das hat nicht geklappt: /, '$1That didn\'t work: '],
+  [/^(\s*)CRV ([\d.,]+) – dein Minimum ist ([\d.,]+)\./, '$1R:R $2 – your minimum is $3.'],
+  [/ – kostet dich /g, ' – costs you '], [/ · zusammen/, ' · total']
+);
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -209,6 +847,17 @@ const IFTHEN = {
   revenge:['ich gerade einen Verlust hatte', 'mache ich die volle Pause, bevor ich wieder auf den Chart schaue'],
   plan:   ['ich eine Regel brechen will', 'tippe ich zuerst den Impuls in der App an']
 };
+const IFTHEN_EN = {
+  fomo:   ['a coin takes off without me', 'I set an alert at my zone instead of chasing it'],
+  frueh:  ['I want to get out early', 'I close the chart and let stop and target do their job'],
+  stop:   ['price moves toward my stop', "I don't touch the stop – it was part of the plan"],
+  gross:  ['I enter the position', 'I only use the size the app calculated'],
+  nach:   ['I want to add to the position', 'I tap the impulse and wait 5 minutes'],
+  kein:   ["I'm bored", 'I close the charts instead of hunting for a setup'],
+  revenge:['I just took a loss', 'I take the full break before I look at the chart again'],
+  plan:   ['I want to break a rule', 'I tap the impulse in the app first']
+};
+const ifthen = k => (LANG === 'en' ? IFTHEN_EN : IFTHEN)[k];
 const WEEKDAYS = [[1,'Mo'],[2,'Di'],[3,'Mi'],[4,'Do'],[5,'Fr'],[6,'Sa'],[7,'So']];
 
 /* ---------- Datum-Helfer ---------- */
@@ -321,7 +970,7 @@ function weeklyReview(){
   const top = costs[0];
   const brokenRule = RULES.map(([key, l]) => [key, l, arr.filter(x => x.rules && x.rules[key] === false).length]).sort((a, b) => b[2] - a[2])[0];
   const suggestKey = top ? top.k : (brokenRule && brokenRule[2] ? 'plan' : 'frueh');
-  const sug = IFTHEN[suggestKey];
+  const sug = ifthen(suggestKey);
   st.rev = {rating: null, wenn: sug[0], dann: sug[1]};
   render(`<div class="card">
     ${backBtn('ret()')}<div class="tag">◷ Wochenrückblick · 2 Minuten</div>
@@ -347,7 +996,7 @@ function weeklyReview(){
   </div>`);
   later(() => {
     bindChips('rv_rate', v => st.rev.rating = v);
-    $$('#rv_sug button').forEach(b => b.onclick = () => { const v = IFTHEN[b.dataset.v]; $('#rv_wenn').value = v[0]; $('#rv_dann').value = v[1]; });
+    $$('#rv_sug button').forEach(b => b.onclick = () => { const v = ifthen(b.dataset.v); $('#rv_wenn').value = v[0]; $('#rv_dann').value = v[1]; });
     loadShotThumbs();
   });
 }
@@ -635,7 +1284,7 @@ function importRender(){
   const span = res && res.fresh.length ? [res.fresh.reduce((a, t) => t.date < a ? t.date : a, res.fresh[0].date), res.fresh.reduce((a, t) => t.date > a ? t.date : a, res.fresh[0].date)] : null;
   $('#imp_body').innerHTML = `
     <div class="impmap">${Object.entries(IMP_COLS).map(([k, d]) => `<label>${d.label}${d.req ? ' *' : ''}${sel(k)}</label>`).join('')}</div>
-    <div class="grid2"><div class="f"><label for="imp_r">1 R entspricht (USDT)</label><input id="imp_r" inputmode="decimal" value="${String(IMP.oneR).replace('.', ',')}"></div>
+    <div class="grid2"><div class="f"><label for="imp_r">1 R entspricht (USDT)</label><input id="imp_r" inputmode="decimal" value="${decStr(IMP.oneR)}"></div>
       <div class="f"><label>Gebühren abziehen</label>${chipRow('imp_fee', [['ja','Ja'],['nein','Nein']], IMP.feeOff ? 'ja' : 'nein', 'small')}</div></div>
     <p class="hint small">Dein Risiko pro Trade in USDT. Daraus wird jeder Gewinn oder Verlust in R umgerechnet – so sind alte und neue Trades vergleichbar.</p>
     ${!ok ? '<p class="msg bad">Ordne mindestens Zeitpunkt und Gewinn/Verlust einer Spalte zu.</p>'
@@ -680,8 +1329,8 @@ function groupBest(arr, keyFn, min){
   rows.sort((a, b) => b.avg - a.avg);
   return rows;
 }
-const sessionOf = d => { const h = +new Intl.DateTimeFormat('de-DE', {timeZone: 'Europe/Berlin', hour: '2-digit', hour12: false}).format(new Date(d)) % 24;
-  return h >= 15 && h < 22 ? 'New York' : h >= 9 && h < 15 ? 'London' : h >= 1 && h < 9 ? 'Asien' : 'Nacht'; };
+const sessionOf = d => { const s = sessionsAt(new Date(d));
+  return s.includes('New York') ? 'New York' : s.includes('London') ? 'London' : s.includes('Asia') ? 'Asien' : 'Nacht'; };
 
 /* ---------- Woche: profitabel? ---------- */
 function weekResultHtml(arr, k){
@@ -754,7 +1403,7 @@ function calendar(){
   const vals = Object.values(byDay), mR = vals.reduce((a, v) => a + v.r, 0), mU = vals.reduce((a, v) => a + v.u, 0), mN = vals.reduce((a, v) => a + v.n, 0);
   const max = Math.max(1, ...vals.map(v => Math.abs(v.r)));
   const name = profMonth.toLocaleDateString(LOC(), {month: 'long', year: 'numeric'});
-  const wd = (LANG === 'en' ? ['Mo','Tu','We','Th','Fr','Sa','Su'] : ['Mo','Di','Mi','Do','Fr','Sa','So']);
+  const wd = (LANG === 'en' ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : ['Mo','Di','Mi','Do','Fr','Sa','So']);
   let cells = wd.map(w => `<span class="cw">${w}</span>`).join('') + '<span class="ce"></span>'.repeat(lead);
   for (let d = 1; d <= days; d++){
     const v = byDay[d], a = v ? Math.min(1, .25 + .75 * Math.abs(v.r) / max) : 0;
@@ -836,19 +1485,32 @@ const today = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.
 const isToday = iso => new Date(iso).toDateString() === new Date().toDateString();
 const fmt = (n, d=2) => isFinite(n) ? Number(n).toLocaleString(LOC(),{minimumFractionDigits:d,maximumFractionDigits:d}) : '–';
 const sgn = (n, d=2) => isFinite(n) ? (n>0?'+':'') + fmt(n,d) : '–';
-const num = v => { let x = String(v ?? '').trim(); if (x.includes(',') && x.includes('.')) x = x.replace(/\./g,''); return parseFloat(x.replace(',', '.')); };
+/* Zahlen lesen: Komma oder Punkt als Dezimaltrenner; Tausender-Trenner werden erkannt (1.234,5 und 1,234.5) */
+const num = v => { let x = String(v ?? '').trim().replace(/\s/g, '');
+  if (x.includes(',') && x.includes('.')) x = x.lastIndexOf(',') > x.lastIndexOf('.') ? x.replace(/\./g, '') : x.replace(/,/g, '');
+  else if (LANG === 'en' && /^\d{1,3}(,\d{3})+$/.test(x)) x = x.replace(/,/g, '');
+  return parseFloat(x.replace(',', '.')); };
+const decStr = v => LANG === 'en' ? String(v) : String(v).replace('.', ',');
 const mmss = ms => { const s = Math.ceil(ms/1000); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
 const coinFmt = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
-function berlin(){
-  const p = new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
-  return +p.find(x=>x.type==='hour').value*60 + +p.find(x=>x.type==='minute').value;
+/* Zeiten: Sessions und US-Börsenstart in der Zeitzone der jeweiligen Börse – stimmt weltweit und auch in den Wochen,
+   in denen Europa und die USA die Uhr zu unterschiedlichen Terminen umstellen. News-Zeit = Ortszeit des Nutzers. */
+function tzMin(zone, d = new Date()){
+  const p = new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d);
+  return (+p.find(x=>x.type==='hour').value % 24)*60 + +p.find(x=>x.type==='minute').value;
 }
-function session(){
-  const t = berlin(), s = [];
-  if (t>=60 && t<600) s.push('Asia'); if (t>=540 && t<1050) s.push('London'); if (t>=870 && t<1320) s.push('New York');
-  return s.length ? s.join(' + ') : 'ruhig';
+const localMin = (d = new Date()) => d.getHours()*60 + d.getMinutes();
+function sessionsAt(d = new Date()){
+  const s = [], tk = tzMin('Asia/Tokyo', d), ld = tzMin('Europe/London', d), ny = tzMin('America/New_York', d);
+  if (tk>=480 && tk<1020) s.push('Asia'); if (ld>=480 && ld<990) s.push('London'); if (ny>=510 && ny<960) s.push('New York');
+  return s;
 }
-const nearUSOpen = () => { const t = berlin(); return t>=900 && t<=990; };
+function session(){ const s = sessionsAt(); return s.length ? s.join(' + ') : 'ruhig'; }
+const NY_OPEN = 570;   /* 9:30 New York */
+const nyWorkday = () => !/Sat|Sun/.test(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short'}).format(new Date()));
+function usOpenLocal(){ const m = ((NY_OPEN + localMin() - tzMin('America/New_York')) % 1440 + 1440) % 1440;
+  return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+const nearUSOpen = () => { const t = tzMin('America/New_York'); return nyWorkday() && t>=NY_OPEN-30 && t<=NY_OPEN+60; };
 const todayTrades = () => cache.journal.filter(j => isToday(j.date));
 const tradesToday = () => todayTrades().length;
 const todayR = () => todayTrades().reduce((a,x) => a + (+x.R||0), 0);
@@ -858,10 +1520,10 @@ const strats = () => strategies().map(s => s.name);
 function newsBlock(){
   const b = biasToday(); if (!b || !b.newsTime) return null;
   const [h, m] = b.newsTime.split(':').map(Number); if (!isFinite(h)) return null;
-  const diff = berlin() - (h*60+m);
+  const diff = localMin() - (h*60+m);
   return (diff >= -cfg.newsWin && diff <= cfg.newsWin) ? b.newsTime : null;
 }
-function usOpenBlock(){ const t = berlin(); return cfg.usOpenBlock>0 && t>=930 && t<930+cfg.usOpenBlock; }
+function usOpenBlock(){ const t = tzMin('America/New_York'); return nyWorkday() && cfg.usOpenBlock>0 && t>=NY_OPEN && t<NY_OPEN+cfg.usOpenBlock; }
 function recentCoins(){
   const out = [], b = biasToday();
   (b && b.fokus || []).forEach(c => out.includes(c) || out.push(c));
@@ -984,7 +1646,7 @@ function start(){
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
   const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. Kein neuer Trade ${cfg.newsWin} Minuten davor und danach.`);
-  if (usOpenBlock()) return stopView('usopen', `Die US-Börse hat um 15:30 Uhr geöffnet. In den ersten ${cfg.usOpenBlock} Minuten keine neuen Trades.`);
+  if (usOpenBlock()) return stopView('usopen', `Die US-Börse hat um ${usOpenLocal()} Uhr geöffnet. In den ersten ${cfg.usOpenBlock} Minuten keine neuen Trades.`);
   const ls = S.get('lastStrat', ''); st = {dir: b.b, risk: cfg.risk, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
@@ -1109,7 +1771,7 @@ function setup(){
     <div class="q">Alles erfüllt?</div>
     <div class="seg" id="dir"><button data-v="long" class="lg ${st.dir==='long'?'on':''}">▲ Long</button><button data-v="short" class="sh ${st.dir==='short'?'on':''}">▼ Short</button></div>
     <div class="f"><label>Strategie</label>${chipRow('strat', strats(), st.strat)}</div>
-    ${nearUSOpen()?'<p class="note">⚠ US-Börsenstart (15:30) in Reichweite: oft ein kurzer Liquidity Grab.</p>':''}
+    ${nearUSOpen()?`<p class="note">⚠ US-Börsenstart (${usOpenLocal()} Uhr) in Reichweite: oft ein kurzer Liquidity Grab.</p>`:''}
     <div class="checks" id="cks">${ckHtml(st.strat)}</div>
     ${st.setupOk ? '<p class="hint small">Du hast das Setup schon bestätigt – Haken sind gesetzt.</p>' : ''}
     <div class="row"><button class="btn ghost" onclick="stopView('setup')">Etwas fehlt</button><button class="btn pri" id="cgo" disabled onclick="st.setupOk=true;next()">Setup bestätigt</button></div>
@@ -1138,9 +1800,9 @@ function plan(){
       <div class="coinrow"><input id="coin" value="${esc(st.coin||'')}" placeholder="z. B. XRP" autocomplete="off" autocapitalize="characters">
       ${coins.length ? chipRow('coins', coins, st.coin, 'small') : ''}</div></div>
     <div class="grid3">
-      <div class="f"><label for="entry">Einstieg</label><input id="entry" inputmode="decimal" autocomplete="off" value="${isFinite(st.entry)&&st.entry>0?String(st.entry).replace('.',','):''}"></div>
-      <div class="f"><label for="sl">Stop-Loss</label><input id="sl" inputmode="decimal" autocomplete="off" value="${isFinite(st.sl)&&st.sl>0?String(st.sl).replace('.',','):''}"></div>
-      <div class="f"><label for="tp">Ziel</label><input id="tp" inputmode="decimal" autocomplete="off" value="${isFinite(st.tp)&&st.tp>0?String(st.tp).replace('.',','):''}"></div>
+      <div class="f"><label for="entry">Einstieg</label><input id="entry" inputmode="decimal" autocomplete="off" value="${isFinite(st.entry)&&st.entry>0?decStr(st.entry):''}"></div>
+      <div class="f"><label for="sl">Stop-Loss</label><input id="sl" inputmode="decimal" autocomplete="off" value="${isFinite(st.sl)&&st.sl>0?decStr(st.sl):''}"></div>
+      <div class="f"><label for="tp">Ziel</label><input id="tp" inputmode="decimal" autocomplete="off" value="${isFinite(st.tp)&&st.tp>0?decStr(st.tp):''}"></div>
     </div>
     ${(() => { const s = stratBy(st.strat); return s && (s.stop || s.target) ? `<p class="hint small rulehint">${s.stop ? `Stop: <b>${esc(s.stop)}</b>` : ''}${s.stop && s.target ? ' · ' : ''}${s.target ? `Ziel: <b>${esc(s.target)}</b>` : ''}</p>` : ''; })()}
     <button class="mini" onclick="$('#accf').hidden=!$('#accf').hidden">Konto ${fmt(cfg.konto,0)} USDT · Risiko ${fmt(st.risk,2)} % · Hebel ${fmt(cfg.hebel,0)}x · ändern</button>
@@ -1282,7 +1944,7 @@ function endTrade(art){
   render(`<div class="card">
     <div class="tag">● Nach dem Trade</div>
     <div class="q">${art==='tp'?'Ziel erreicht':art==='sl'?'Stop getroffen – ein Datenpunkt':'Manuell geschlossen'}</div>
-    <div class="f"><label for="rr">Ergebnis in R</label><input id="rr" inputmode="decimal" value="${R!==null?fmt(R):''}" placeholder="z. B. 0,5"></div>
+    <div class="f"><label for="rr">Ergebnis in R</label><input id="rr" inputmode="decimal" value="${R!==null?fmt(R):''}" placeholder="z. B. ${fmt(0.5,1)}"></div>
     <div class="f"><label>An welche Regeln hast du dich gehalten? Antippen, was du gebrochen hast.</label>${rulesRow('rules', art==='manuell'?{tp:false}:{})}</div>
     <div class="f"><label>War ein Fehler dabei? (optional, ehrlich hilft dir am meisten)</label>${mistakeRow('mist', [])}</div>
     <div class="f"><label for="note">1 % besser beim nächsten Mal (optional)</label><input id="note" placeholder="z. B. auf Kerzenschluss warten" autocomplete="off"></div>
@@ -1526,6 +2188,7 @@ function settings(){
     ${reminderHtml()}
     <div class="lbl3">Deine Grenzen</div>
     <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
+    <div class="f tog"><label>Sprache / Language</label><div class="chips small" id="s_lang" translate="no"><button type="button" data-v="de" class="${LANG==='de'?'on':''}">Deutsch</button><button type="button" data-v="en" class="${LANG==='en'?'on':''}">English</button></div></div>
     <div class="f tog"><label>Design</label>${chipRow('s_theme', [['cyan','Cyan (Standard)'],['gold','Gold']], document.documentElement.dataset.theme === 'gold' ? 'gold' : 'cyan', 'small')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
       <p class="hint small" style="margin:6px 0 0">Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.</p></div>
@@ -1538,7 +2201,8 @@ function settings(){
     <p class="msg" id="impmsg"></p>
     <p class="disc">NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
-  later(() => { bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
+  later(() => { bindChips('s_lang', v => { if (v !== LANG){ saveSettings(true); setLang(v); } });
+    bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }); bindReminder(); });
 }
 function saveSettings(quiet){
@@ -1715,39 +2379,44 @@ function sndWake(){
    Strategien: Vorlagen, eigene Checklisten, Einrichtung
 ------------------------------------------------------------------ */
 const TEMPLATES = [
-  {name:'Fair Value Gap', icon:'▤', desc:'Rücksetzer in eine Preislücke',
+  {en:{"name": "Fair Value Gap", "desc": "Pullback into a price gap", "checks": ["The gap is in the direction of the higher-timeframe trend", "Price is back inside the gap now", "Reaction with a confirmation candle – after the candle closes", "No strong obstacle between entry and target"], "stop": "Behind the candle that created the gap", "target": "Next high or low with liquidity"}, name:'Fair Value Gap', icon:'▤', desc:'Rücksetzer in eine Preislücke',
    checks:['Die Lücke liegt in Richtung des Trends auf dem höheren Zeitrahmen','Der Kurs ist jetzt zurück in der Lücke','Reaktion mit Bestätigungskerze – nach Kerzenschluss','Bis zum Ziel liegt kein starkes Hindernis'],
    stop:'Hinter der Kerze, die die Lücke erzeugt hat', target:'Nächstes Hoch bzw. Tief mit Liquidität'},
-  {name:'Support & Resistance', icon:'☰', desc:'Reaktion an einer wichtigen Zone',
+  {en:{"name": "Support & Resistance", "desc": "Reaction at a key zone", "checks": ["The zone has clearly reacted in the past", "Price is in the zone now – not already far away", "Confirmation candle: hammer, engulfing or close above/below the zone", "The higher timeframe does not argue against it"], "stop": "Behind the zone plus a little buffer", "target": "Next opposite zone"}, name:'Support & Resistance', icon:'☰', desc:'Reaktion an einer wichtigen Zone',
    checks:['Die Zone hat in der Vergangenheit klar reagiert','Der Kurs ist jetzt in der Zone – nicht schon weit weg','Bestätigungskerze: Hammer, Engulfing oder Schluss über/unter der Zone','Der höhere Zeitrahmen spricht nicht dagegen'],
    stop:'Hinter der Zone plus etwas Puffer', target:'Nächste gegenüberliegende Zone'},
-  {name:'Trendfolge / Breakout', icon:'↗', desc:'Mitfahren, wenn ein Level bricht',
+  {en:{"name": "Trend Following / Breakout", "desc": "Ride along when a level breaks", "checks": ["Clear trend: higher highs and lows (or lower)", "Breakout with a candle close above or below the level", "No major resistance right in front of price", "Momentum or volume confirms the breakout"], "stop": "Behind the last swing", "target": "Trailing stop or fixed R:R"}, name:'Trendfolge / Breakout', icon:'↗', desc:'Mitfahren, wenn ein Level bricht',
    checks:['Klarer Trend: höhere Hochs und Tiefs (bzw. tiefere)','Ausbruch mit Kerzenschluss über bzw. unter dem Level','Direkt vor dem Kurs liegt kein großer Widerstand','Momentum oder Volumen bestätigt den Ausbruch'],
    stop:'Hinter dem letzten Swing', target:'Nachziehender Stop oder festes CRV'},
-  {name:'Pullback', icon:'↩', desc:'Einstieg im Rücksetzer eines Trends',
+  {en:{"name": "Pullback", "desc": "Entry on a pullback within a trend", "checks": ["The higher-timeframe trend is intact", "Price pulls back to a zone or moving average", "Reversal signal after the candle closes", "Structure is not broken"], "stop": "Below or above the pullback low/high", "target": "Last high or low of the trend"}, name:'Pullback', icon:'↩', desc:'Einstieg im Rücksetzer eines Trends',
    checks:['Der Trend auf dem höheren Zeitrahmen ist intakt','Der Kurs setzt an eine Zone oder gleitende Linie zurück','Umkehrsignal nach Kerzenschluss','Die Struktur ist nicht gebrochen'],
    stop:'Unter bzw. über dem Tief des Rücksetzers', target:'Letztes Hoch bzw. Tief des Trends'},
-  {name:'Range', icon:'⇆', desc:'Seitwärtsmarkt von Rand zu Rand',
+  {en:{"name": "Range", "desc": "Sideways market, edge to edge", "checks": ["The range is clear: top and bottom touched at least twice", "Price is at the edge of the range – not in the middle", "Rejection at the edge after the candle closes", "No breakout on the higher timeframe"], "stop": "Just outside the range", "target": "Middle or other side of the range"}, name:'Range', icon:'⇆', desc:'Seitwärtsmarkt von Rand zu Rand',
    checks:['Die Range ist klar: oben und unten mindestens zweimal berührt','Der Kurs ist am Rand der Range – nicht in der Mitte','Ablehnung am Rand nach Kerzenschluss','Kein Ausbruch auf dem höheren Zeitrahmen'],
    stop:'Knapp außerhalb der Range', target:'Mitte oder andere Seite der Range'},
-  {name:'Liquidity Sweep', icon:'⤓', desc:'Fehlausbruch über ein offensichtliches Level',
+  {en:{"name": "Liquidity Sweep", "desc": "False break of an obvious level", "checks": ["Obvious high or low with stops behind it", "A wick takes the liquidity and closes back inside", "Structure break on the lower timeframe", "Entry on the pullback, not in the impulse"], "stop": "Behind the wick of the sweep", "target": "Opposite liquidity"}, name:'Liquidity Sweep', icon:'⤓', desc:'Fehlausbruch über ein offensichtliches Level',
    checks:['Offensichtliches Hoch bzw. Tief mit Stops dahinter','Docht holt die Liquidität und schließt wieder zurück','Strukturbruch auf dem kleineren Zeitrahmen','Einstieg im Rücksetzer, nicht im Impuls'],
    stop:'Hinter dem Docht des Sweeps', target:'Gegenüberliegende Liquidität'}
 ];
 const sid = () => 's' + Date.now().toString(36) + Math.floor(Math.random()*1e4).toString(36);
-const tplByName = n => { const q = String(n||'').toLowerCase().trim(); return q ? TEMPLATES.find(t => t.name.toLowerCase() === q) || TEMPLATES.find(t => t.name.toLowerCase().startsWith(q)) : null; };
-function fromTemplate(t){ return {id: sid(), name: t.name, checks: t.checks.slice(), stop: t.stop||'', target: t.target||''}; }
+const tplByName = n => { const q = String(n||'').toLowerCase().trim(); if (!q) return null;
+  const names = t => [t.name, t.en && t.en.name].filter(Boolean).map(x => x.toLowerCase());
+  return TEMPLATES.find(t => names(t).includes(q)) || TEMPLATES.find(t => names(t).some(x => x.startsWith(q))) || null; };
+/* Vorlagen in der Sprache des Nutzers anlegen – gespeichert wird, was er sieht und bearbeitet */
+const tplL = t => (LANG === 'en' && t.en) ? Object.assign({icon: t.icon}, t.en) : t;
+function fromTemplate(t){ const l = tplL(t); return {id: sid(), name: l.name, checks: l.checks.slice(), stop: l.stop||'', target: l.target||''}; }
 function strategies(){
   if (Array.isArray(cfg.strategies) && cfg.strategies.length) return cfg.strategies;
   /* Umzug von der alten Version: eine Liste für alle Strategien */
   const names = (Array.isArray(cfg.strats) && cfg.strats.length) ? cfg.strats : DEFAULTS.strats;
   const custom = Array.isArray(cfg.checks) && cfg.checks.length && cfg.checks.join('|') !== DEFAULT_CHECKS.join('|') ? cfg.checks : null;
-  cfg.strategies = names.map(n => { const t = tplByName(n) || {name:n, checks:DEFAULT_CHECKS};
-    return {id: sid(), name: n, checks: (custom || t.checks).slice(), stop: t.stop||'', target: t.target||''}; });
+  cfg.strategies = names.map(n => { const t0 = tplByName(n), t = t0 ? tplL(t0) : {name:n, checks:defChecks()};
+    return {id: sid(), name: t0 ? t.name : n, checks: (custom || t.checks).slice(), stop: t.stop||'', target: t.target||''}; });
   return cfg.strategies;
 }
 const stratBy = name => strategies().find(s => s.name === name) || strategies()[0];
-const checksFor = name => { const s = stratBy(name); return s && s.checks.length ? s.checks : DEFAULT_CHECKS; };
+const defChecks = () => LANG === 'en' ? DEFAULT_CHECKS_EN : DEFAULT_CHECKS;
+const checksFor = name => { const s = stratBy(name); return s && s.checks.length ? s.checks : defChecks(); };
 function ckHtml(name){ return checksFor(name).map(c=>`<button class="ck" onclick="this.classList.toggle('on');ckUpd()"><span class="box"></span><span>${esc(c)}</span></button>`).join(''); }
 const needsOnboarding = () => !cfg.onboarded && !cache.journal.length && !(Array.isArray(cfg.strategies) && cfg.strategies.length);
 
@@ -1761,7 +2430,7 @@ function onboarding(stage=1){
       <div class="tag">● Einrichtung 1/3</div>
       <div class="q">Welche Strategien tradest du?</div>
       <p class="hint">Tipp alle an, die du nutzt. Jede bekommt ihre eigene Checkliste – die kannst du gleich anpassen.</p>
-      <div class="tpls">${TEMPLATES.map((t,i)=>`<button class="tpl ${ob.pick.has(i)?'on':''}" data-i="${i}"><span class="ti">${t.icon}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join('')}
+      <div class="tpls">${TEMPLATES.map((t,i)=>`<button class="tpl ${ob.pick.has(i)?'on':''}" data-i="${i}"><span class="ti">${t.icon}</span><b>${esc(tplL(t).name)}</b><small>${esc(tplL(t).desc)}</small></button>`).join('')}
         <button class="tpl ${ob.pick.has('own')?'on':''}" data-i="own"><span class="ti">✎</span><b>Eigene Strategie</b><small>Von null selbst beschreiben</small></button></div>
       <div class="row"><button class="btn ghost" onclick="obSkip()">Später</button><button class="btn pri" id="ob1" ${ob.pick.size?'':'disabled'} onclick="obToEdit()">Weiter</button></div>
     </div>`);
@@ -1788,7 +2457,7 @@ function onboarding(stage=1){
         <div class="f"><label for="o_max">Max. Trades pro Tag</label><input id="o_max" inputmode="decimal" value="${cfg.maxTrades}"></div>
         <div class="f"><label for="o_crv">Mindest-CRV</label><input id="o_crv" inputmode="decimal" value="${cfg.minCRV}"></div>
       </div>
-      <p class="hint small">Faustregel: 0,5–1 % Risiko pro Trade. So überstehst du auch eine Pechsträhne von 10 Verlusten.</p>
+      <p class="hint small">Faustregel: ${fmt(0.5,1)}–1 % Risiko pro Trade. So überstehst du auch eine Pechsträhne von 10 Verlusten.</p>
       <div class="row"><button class="btn ghost" onclick="onboarding(2)">Zurück</button><button class="btn pri" onclick="obFinish()">Los geht's</button></div>
     </div>`);
   }
@@ -1876,7 +2545,7 @@ function delStrat(id, btn){
 function pickTemplate(){
   const have = new Set(strategies().map(s => s.name));
   modal(`<div class="tag">● Neue Strategie</div><div class="q">Womit möchtest du starten?</div>
-    <div class="tpls">${TEMPLATES.filter(t => !have.has(t.name)).map(t=>`<button class="tpl" onclick="newStrat('${esc(t.name)}')"><span class="ti">${t.icon}</span><b>${esc(t.name)}</b><small>${esc(t.desc)}</small></button>`).join('')}
+    <div class="tpls">${TEMPLATES.filter(t => !have.has(t.name) && !(t.en && have.has(t.en.name))).map(t=>`<button class="tpl" onclick="newStrat('${esc(t.name)}')"><span class="ti">${t.icon}</span><b>${esc(tplL(t).name)}</b><small>${esc(tplL(t).desc)}</small></button>`).join('')}
       <button class="tpl" onclick="newStrat('')"><span class="ti">✎</span><b>Eigene Strategie</b><small>Von null selbst beschreiben</small></button></div>
     <div class="row"><button class="btn ghost" style="flex:1" onclick="closeModal()">Abbrechen</button></div>`);
 }
