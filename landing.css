@@ -158,3 +158,6 @@ footer a{color:var(--mut2)}
 .lang:hover{color:var(--txt)}
 .langbar{display:block;text-align:center;background:#0a2a30;color:var(--cy2);font-size:14px;font-weight:600;padding:10px 16px;text-decoration:none}
 .langbar[hidden]{display:none}
+
+/* Logo */
+.brand .mark{height:21px;width:auto;display:block;overflow:visible}

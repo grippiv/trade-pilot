@@ -378,3 +378,8 @@ details.howto p{margin:6px 0;line-height:1.45}
 .calgrid .cd.has i{color:rgba(255,255,255,.8)}
 .calgrid .cd b{font-size:11px;color:#fff;font-weight:800}
 @media (max-width:440px){.nav{gap:5px}.nav button{padding:7px 8px;font-size:12.5px}}
+
+/* Logo: Zickzack wird zur geraden Linie */
+.brand .mark{height:19px;width:auto;display:block;flex:0 0 auto;overflow:visible}
+.brand .mark .ln{stroke:var(--gold)}
+.brand .mark .dt{fill:var(--gold)}

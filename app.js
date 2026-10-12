@@ -816,7 +816,11 @@ Object.assign(I18N_EN, {
   "Strukturbruch auf dem kleineren Zeitrahmen": "Structure break on the lower timeframe",
   "Einstieg im Rücksetzer, nicht im Impuls": "Entry on the pullback, not in the impulse",
   "Hinter dem Docht des Sweeps": "Behind the wick of the sweep",
-  "Gegenüberliegende Liquidität": "Opposite liquidity"
+  "Gegenüberliegende Liquidität": "Opposite liquidity",
+  'Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.': 'One week alone says little – what matters is the range over many trades.',
+  'Im normalen Schwankungsbereich deiner Wochen (Ø # R).': 'Within the normal range of your weeks (avg # R).',
+  'Noch zu wenige Wochen für einen Vergleich mit deinem Durchschnitt.': 'Not enough weeks yet to compare with your average.',
+  '· danach': '· then'
 });
 
 /* Zusammengesetzte Texte mit eigenen Inhalten (Coin, Strategie, Wochenziel) */
@@ -1352,7 +1356,7 @@ function weekResultHtml(arr, k){
       : `Im normalen Schwankungsbereich deiner Wochen (Ø ${sgn(m, 1)} R).`;
   }
   return `<div class="wres ${cls}"><div class="wnum"><b>${sgn(r, 1)} R</b><span>≈ ${usd(u)} · ${pct >= 0 ? '+' : ''}${fmt(pct, 1)} %</span></div>
-    <div>${msg}</div><div class="mutedtxt">${ctx} Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.</div></div>`;
+    <div>${msg}</div><div class="mutedtxt"><span>${ctx}</span> <span>Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.</span></div></div>`;
 }
 
 /* ---------- Profil-Seite ---------- */
@@ -2046,7 +2050,7 @@ function insights(arr){
   const brokenRule = RULES.map(([k,l]) => [l, arr.filter(x => x.rules && x.rules[k]===false).length]).sort((a,b)=>b[1]-a[1])[0];
   if (brokenRule && brokenRule[1]>=2) out.push(`Am häufigsten gebrochen: <b>${brokenRule[0]}</b> (${brokenRule[1]}×)`);
   const mc = mistakeCosts(arr).filter(m => m.cost > 0);
-  if (mc.length) out.unshift(`Teuerster Fehler: <b>${esc(mc[0].l)}</b> – ${mc[0].n}× · kostet dich ca. <b class="bad">${fmt(mc[0].cost,1)} R</b>` + (mc[1] ? ` · danach ${esc(mc[1].l)} (${fmt(mc[1].cost,1)} R)` : ''));
+  if (mc.length) out.unshift(`Teuerster Fehler: <b>${esc(mc[0].l)}</b> – ${mc[0].n}× · kostet dich ca. <b class="bad">${fmt(mc[0].cost,1)} R</b>` + (mc[1] ? ` · danach <span>${esc(mc[1].l)}</span> (${fmt(mc[1].cost,1)} R)` : ''));
   return out;
 }
 function journal(){
