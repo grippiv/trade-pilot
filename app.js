@@ -891,7 +891,21 @@ Object.assign(I18N_EN, {
   "Stärken & Schwächen, Treffer, Drawdown": "Strengths & weaknesses, win rate, drawdown",
   'Später einrichten': 'Set up later',
   'Design & Töne': 'Design & sounds',
-  'Daten: Backup & Löschen': 'Data: backup & delete'
+  'Daten: Backup & Löschen': 'Data: backup & delete',
+  "#-Minuten-Gap, Einstieg in der Mitte, festes CRV": "#m gap, entry in the middle, fixed R:R",
+  "Über bzw. unter dem letzten markanten Docht (hinter dem Gap)": "Above or below the last significant wick (beyond the gap)",
+  "Festes CRV #–# (z. B. XRP: #)": "Fixed R:R #–# (e.g. XRP: #)",
+  "Aktuelle Vorlage „Fair Value Gap“ übernehmen": "Use current “Fair Value Gap” template",
+  "#-Minuten-Chart: Der Indikator zeigt ein neues Fair Value Gap": "#-minute chart: the indicator shows a new fair value gap",
+  "Das Gap ist mindestens # % groß": "The gap is at least # % in size",
+  "Der Move nach dem Gap hat mindestens CRV # (Ziel am letzten Hoch bzw. Tief vor dem Rücklauf)": "The move after the gap has at least R:R # (target at the last high or low before the pullback)",
+  "Nicht mehr als # % mitigiert und außerhalb geschlossen": "Not more than # % mitigated and closed outside",
+  "Nicht schon im Gap und danach wieder außerhalb geschlossen": "Not already closed inside the gap and then back outside",
+  "Kein weiteres valides Gap direkt darunter bzw. darüber": "No other valid gap directly below or above",
+  "Das Gap wurde noch nicht vollständig mitigiert": "The gap has not been fully mitigated yet",
+  "Einstieg in der Mitte des Gaps (Limit- oder Trigger-Order)": "Entry in the middle of the gap (limit or trigger order)",
+  "Keine News und kein Börsenstart gerade – sonst besonders vorsichtig": "No news and no market open right now – otherwise be extra careful",
+  'Aktuelle Vorlage': 'Current template'
 });
 
 /* Zusammengesetzte Texte mit eigenen Inhalten (Coin, Strategie, Wochenziel) */
@@ -2578,9 +2592,9 @@ function sndWake(){
    Strategien: Vorlagen, eigene Checklisten, Einrichtung
 ------------------------------------------------------------------ */
 const TEMPLATES = [
-  {en:{"name": "Fair Value Gap", "desc": "Pullback into a price gap", "checks": ["The gap is in the direction of the higher-timeframe trend", "Price is back inside the gap now", "Reaction with a confirmation candle – after the candle closes", "No strong obstacle between entry and target"], "stop": "Behind the candle that created the gap", "target": "Next high or low with liquidity"}, name:'Fair Value Gap', icon:'▤', desc:'Rücksetzer in eine Preislücke',
-   checks:['Die Lücke liegt in Richtung des Trends auf dem höheren Zeitrahmen','Der Kurs ist jetzt zurück in der Lücke','Reaktion mit Bestätigungskerze – nach Kerzenschluss','Bis zum Ziel liegt kein starkes Hindernis'],
-   stop:'Hinter der Kerze, die die Lücke erzeugt hat', target:'Nächstes Hoch bzw. Tief mit Liquidität'},
+  {en:{"name": "Fair Value Gap", "desc": "30m gap, entry in the middle, fixed R:R", "checks": ["30-minute chart: the indicator shows a new fair value gap", "The gap is at least 0.5% in size", "The move after the gap has at least R:R 2 (target at the last high or low before the pullback)", "Not more than 20% mitigated and closed outside", "Not already closed inside the gap and then back outside", "No other valid gap directly below or above", "The gap has not been fully mitigated yet", "Entry in the middle of the gap (limit or trigger order)", "No news and no market open right now – otherwise be extra careful"], "stop": "Above or below the last significant wick (beyond the gap)", "target": "Fixed R:R 2–3 (e.g. XRP: 3)"}, name:'Fair Value Gap', icon:'▤', desc:'30-Minuten-Gap, Einstieg in der Mitte, festes CRV',
+   checks:['30-Minuten-Chart: Der Indikator zeigt ein neues Fair Value Gap', 'Das Gap ist mindestens 0,5 % groß', 'Der Move nach dem Gap hat mindestens CRV 2 (Ziel am letzten Hoch bzw. Tief vor dem Rücklauf)', 'Nicht mehr als 20 % mitigiert und außerhalb geschlossen', 'Nicht schon im Gap und danach wieder außerhalb geschlossen', 'Kein weiteres valides Gap direkt darunter bzw. darüber', 'Das Gap wurde noch nicht vollständig mitigiert', 'Einstieg in der Mitte des Gaps (Limit- oder Trigger-Order)', 'Keine News und kein Börsenstart gerade – sonst besonders vorsichtig'],
+   stop:'Über bzw. unter dem letzten markanten Docht (hinter dem Gap)', target:'Festes CRV 2–3 (z. B. XRP: 3)'},
   {en:{"name": "Support & Resistance", "desc": "Reaction at a key zone", "checks": ["The zone has clearly reacted in the past", "Price is in the zone now – not already far away", "Confirmation candle: hammer, engulfing or close above/below the zone", "The higher timeframe does not argue against it"], "stop": "Behind the zone plus a little buffer", "target": "Next opposite zone"}, name:'Support & Resistance', icon:'☰', desc:'Reaktion an einer wichtigen Zone',
    checks:['Die Zone hat in der Vergangenheit klar reagiert','Der Kurs ist jetzt in der Zone – nicht schon weit weg','Bestätigungskerze: Hammer, Engulfing oder Schluss über/unter der Zone','Der höhere Zeitrahmen spricht nicht dagegen'],
    stop:'Hinter der Zone plus etwas Puffer', target:'Nächste gegenüberliegende Zone'},
@@ -2732,10 +2746,17 @@ function stratListHtml(first){
 }
 function editStrat(id){
   const s = strategies().find(x => x.id===id); if (!s) return;
+  const tp = tplByName(s.name);
   modal(`<div class="tag">● Strategie</div>${stratEditor(s, false)}
+    ${tp ? `<button type="button" class="linkbtn" onclick="tplInto('${id}')">Aktuelle Vorlage „${esc(tplL(tp).name)}“ übernehmen</button>` : ''}
     <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveStrat('${id}')">Speichern</button></div>
     ${strategies().length > 1 ? `<div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="delStrat('${id}', this)">Strategie löschen</button></div>` : ''}`);
   growAll();
+}
+/* Fragen, Stop und Ziel aus der aktuellen Vorlage ins Formular übernehmen – gespeichert wird erst mit „Speichern“ */
+function tplInto(id){
+  const s = strategies().find(x => x.id===id), t = s && tplByName(s.name); if (!t) return;
+  const l = tplL(t); $('#se_checks').innerHTML = l.checks.map(c => ckRow(c)).join(''); $('#se_stop').value = l.stop || ''; $('#se_tp').value = l.target || ''; growAll();
 }
 function saveStrat(id){
   const list = strategies(), s = list.find(x => x.id===id); if (!s) return;
