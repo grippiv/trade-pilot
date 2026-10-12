@@ -411,8 +411,8 @@ details.more[open] summary::before{content:"– "}
 .tabbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .tabbar button.on{color:var(--gold)}
 .tabbar button:active{background:rgba(255,255,255,.05)}
-body[data-view=flow] .tabbar,body[data-view=day] .tabbar,body[data-view=end] .tabbar,body[data-view=onboard] .tabbar,body[data-view=account] .tabbar{display:none}
-body[data-view=flow] .app,body[data-view=day] .app,body[data-view=end] .app,body[data-view=onboard] .app{padding-bottom:40px}
+body[data-view=flow] .tabbar,body[data-view=day] .tabbar,body[data-view=end] .tabbar,body[data-view=onboard] .tabbar,body[data-view=disc] .tabbar,body[data-view=account] .tabbar{display:none}
+body[data-view=flow] .app,body[data-view=day] .app,body[data-view=end] .app,body[data-view=onboard] .app,body[data-view=disc] .app{padding-bottom:40px}
 /* Begriffe antippen = kurze Erklärung */
 [data-term]{cursor:help}
 [data-term]::after{content:"?";display:inline-grid;place-items:center;width:14px;height:14px;margin-left:5px;border-radius:50%;border:1px solid currentColor;font-size:9px;font-weight:800;line-height:1;opacity:.55;vertical-align:1px;text-transform:none;letter-spacing:0}
@@ -433,6 +433,10 @@ body[data-view=flow] .app,body[data-view=day] .app,body[data-view=end] .app,body
 .fshide{display:block;margin:6px auto 0;font-size:13px}
 ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
 .jstats.three{grid-template-columns:repeat(3,1fr)}
+
+.disc1 .ck span:last-child{font-size:14px;line-height:1.45}
+.disc1 .checks{margin:14px 0 16px}
+.disc1 .disc{text-align:center;margin-top:14px}
 
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}

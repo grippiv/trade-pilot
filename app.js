@@ -654,6 +654,13 @@ Object.assign(I18N_EN, {
   'Das ist keine gültige NoTilt-Backup-Datei.': 'That\'s not a valid NoTilt backup file.',
   'Backup geladen ✓': 'Backup loaded ✓',
   'NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.': 'NoTilt is a tool for discipline and self-observation – not investment advice. Leveraged crypto trading can lead to the total loss of your capital.',
+  '● Bevor es losgeht': '● Before you start',
+  'Wichtiger Hinweis': 'Important notice',
+  'Strategie-Vorlagen, Beispiele und Auswertungen in der App dienen nur zum Lernen und zur Selbstkontrolle. Vergangene Ergebnisse – auch deine eigenen – garantieren nichts für die Zukunft. Bitte bestätige:': 'Strategy templates, examples and stats in this app are for learning and self-monitoring only. Past results – including your own – guarantee nothing about the future. Please confirm:',
+  'Ich verstehe: NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung. Die App gibt keine Anlage- oder Finanzberatung und keine Kauf- oder Verkaufsempfehlungen.': 'I understand: NoTilt is a tool for discipline and self-observation. It does not provide investment or financial advice and gives no buy or sell recommendations.',
+  'Mir ist klar, dass gehebelter Handel mit Kryptowährungen zum Totalverlust des eingesetzten Geldes führen kann. Jede Entscheidung treffe ich selbst und auf eigenes Risiko.': 'I know that leveraged crypto trading can lead to the total loss of the money I put in. I make every decision myself and at my own risk.',
+  'Ich bin mindestens # Jahre alt.': 'I am at least # years old.',
+  'Verstanden – weiter': 'Got it – continue',
   'Impressum': 'Legal notice',
   'Datenschutz': 'Privacy',
 
@@ -1585,6 +1592,31 @@ function markTab(){
   const map = {home:'home', journal:'journal', profile:'profile', settings:'settings', review:'profile', intrade:'home', cool:'home', stop:'home'};
   document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('on', b.dataset.v === map[curView]));
 }
+
+/* ---------- Hinweis beim ersten Start: keine Anlageberatung, Risiko, 18+ ----------
+   Muss aktiv bestätigt werden (drei Haken). Version hochzählen, wenn sich der Text ändert. */
+const DISC_V = 1;
+const needsDisclaimer = () => (+LS.get('discV', 0) || 0) < DISC_V && !((+cfg.discV || 0) >= DISC_V);
+const DISC_ITEMS = [
+  'Ich verstehe: NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung. Die App gibt keine Anlage- oder Finanzberatung und keine Kauf- oder Verkaufsempfehlungen.',
+  'Mir ist klar, dass gehebelter Handel mit Kryptowährungen zum Totalverlust des eingesetzten Geldes führen kann. Jede Entscheidung treffe ich selbst und auf eigenes Risiko.',
+  'Ich bin mindestens 18 Jahre alt.'
+];
+function disclaimer(){
+  stopTimers(); curView = 'disc'; progress(null); closeModal();
+  render(`<div class="card ob disc1">
+    <div class="tag">● Bevor es losgeht</div>
+    <div class="q">Wichtiger Hinweis</div>
+    <p class="hint">Strategie-Vorlagen, Beispiele und Auswertungen in der App dienen nur zum Lernen und zur Selbstkontrolle. Vergangene Ergebnisse – auch deine eigenen – garantieren nichts für die Zukunft. Bitte bestätige:</p>
+    <div class="checks">${DISC_ITEMS.map(t => `<button class="ck" onclick="this.classList.toggle('on');discUpd()"><span class="box"></span><span>${t}</span></button>`).join('')}</div>
+    <div class="row"><button class="btn pri" id="discok" style="flex:1" disabled onclick="discAccept()">Verstanden – weiter</button></div>
+    <p class="disc"><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a> · <a href="#" onclick="setLang(LANG==='en'?'de':'en');return false">${LANG === 'en' ? 'Deutsch' : 'English'}</a></p>
+  </div>`);
+}
+function discUpd(){ const b = $('#discok'); if (b) b.disabled = $$('.disc1 .ck').some(x => !x.classList.contains('on')); }
+function discAccept(){
+  LS.set('discV', DISC_V); cfg.discV = DISC_V; cfg.discAt = new Date().toISOString(); saveCfg(); home();
+}
 /* ------------------------------------------------------------------
    Inhalte
 ------------------------------------------------------------------ */
@@ -1771,6 +1803,7 @@ function restoreNav(){
    Start
 ------------------------------------------------------------------ */
 function home(){
+  if (needsDisclaimer()) return disclaimer();
   curView = 'home'; progress(null);
   if (S.get('active', null)) return inTrade();
   if (needsOnboarding()) return onboarding();
@@ -2961,10 +2994,10 @@ function importBackup(inp){
 ------------------------------------------------------------------ */
 async function boot(){
   startI18n();
-  if (!HAS_BACKEND){ if (!restoreNav()) home(); startSync(); return; }
+  if (!HAS_BACKEND){ if (needsDisclaimer() || !restoreNav()) home(); startSync(); return; }
   let session = null;
   try { session = (await sb.auth.getSession()).data.session; } catch(e){}
-  if (!session && needsLogin()) accountView('login'); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else if (!restoreNav()) home();
+  if (!session && needsLogin()) accountView('login'); else if (needsDisclaimer()) home(); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else if (!restoreNav()) home();
   startSync();
 }
 boot();
