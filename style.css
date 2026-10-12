@@ -437,3 +437,9 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
 .disc1 .ck span:last-child{font-size:14px;line-height:1.45}
 .disc1 .checks{margin:14px 0 16px}
 .disc1 .disc{text-align:center;margin-top:14px}
+
+.openlist{display:grid;gap:8px;margin:0 0 18px}
+.openrow{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(52,211,153,.45);background:rgba(52,211,153,.07);color:var(--txt);text-align:left;cursor:pointer;font:inherit}
+.openrow span:not(.livedot){color:var(--mut);font-size:13px}
+.openrow em{margin-left:auto;font-style:normal;color:var(--green);font-weight:700;font-size:14px;white-space:nowrap}
+.opensw{margin:2px 0 12px}

@@ -661,6 +661,19 @@ Object.assign(I18N_EN, {
   'Mir ist klar, dass gehebelter Handel mit Kryptowährungen zum Totalverlust des eingesetzten Geldes führen kann. Jede Entscheidung treffe ich selbst und auf eigenes Risiko.': 'I know that leveraged crypto trading can lead to the total loss of the money I put in. I make every decision myself and at my own risk.',
   'Ich bin mindestens # Jahre alt.': 'I am at least # years old.',
   'Verstanden – weiter': 'Got it – continue',
+  'Noch ein Trade?': 'Another trade?',
+  'offen · seit # Min.': 'open · for # min',
+  'offen · seit # Std.': 'open · for # h',
+  'Öffnen →': 'Open →',
+  '⚠ Schon ein Trade offen': '⚠ One trade already open',
+  '⚠ Schon # Trades offen': '⚠ # trades already open',
+  'Noch einen dazu?': 'Add another one?',
+  'Gerade riskierst du # %. Mit einem weiteren Trade sind es ca. # % gleichzeitig. Laufen die Trades in dieselbe Richtung, verlieren sie oft auch zusammen.': 'Right now you are risking # %. With another trade it is about # % at the same time. Trades in the same direction often lose together, too.',
+  'Lieber nicht': 'Better not',
+  'Zur Checkliste': 'To the checklist',
+  '+ Weiteren Trade über die Checkliste': '+ Another trade via the checklist',
+  'Profit – Take Profit erreicht': 'Profit – take profit hit',
+  'Loss – Stop Loss getroffen. Ein Datenpunkt.': 'Loss – stop loss hit. Just one data point.',
   'Impressum': 'Legal notice',
   'Datenschutz': 'Privacy',
 
@@ -1557,7 +1570,7 @@ function firstSteps(){
   return [
     ['Strategie eingerichtet', true, ''],
     ['Ersten Tages-Check machen', Object.keys(days).length > 0 || !!S.get('lastBias', null), 'dayCheck()'],
-    ['Ersten Trade über die Checkliste starten', J.some(t => t.checklist) || (S.get('stops', []) || []).length > 0 || !!S.get('active', null), 'start()'],
+    ['Ersten Trade über die Checkliste starten', J.some(t => t.checklist) || (S.get('stops', []) || []).length > 0 || openTrades().length > 0, 'start()'],
     ['Trade abschließen und Ergebnis eintragen', J.some(t => t.checklist), "go('journal')"],
     ['App auf den Home-Bildschirm holen', isStandalone() || !!LS.get('installDone', false), 'installHelp()'],
     ['Ersten Wochenrückblick machen', (S.get('reviews', []) || []).length > 0, 'weeklyReview()']
@@ -1715,6 +1728,14 @@ function usOpenLocal(){ const m = ((NY_OPEN + localMin() - tzMin('America/New_Yo
 const nearUSOpen = () => { const t = tzMin('America/New_York'); return nyWorkday() && t>=NY_OPEN-30 && t<=NY_OPEN+60; };
 const todayTrades = () => cache.journal.filter(j => isToday(j.date));
 const tradesToday = () => todayTrades().length;
+/* Mehrere offene Trades gleichzeitig: 'active' ist eine Liste (alte Einzel-Trades werden übernommen) */
+const openTrades = () => { const a = S.get('active', null); return !a ? [] : (Array.isArray(a) ? a : [Object.assign({id: 'o' + (a.start || 1)}, a)]).filter(x => x && x.entry !== undefined); };
+const setOpen = arr => S.set('active', arr.length ? arr : null);
+const getOpen = id => { const o = openTrades(); return o.find(x => x.id === id) || o[o.length - 1] || null; };
+const usedToday = () => tradesToday() + openTrades().length;
+let curOpen = null;
+const sinceTxt = a => { const m = Math.max(1, Math.round((Date.now() - a.start) / 60000)); return m < 120 ? `seit ${m} Min.` : `seit ${Math.round(m/60)} Std.`; };
+const endBtns = id => `<button class="btn green" onclick="endTrade('tp','${id}')">Profit</button><button class="btn red" onclick="endTrade('sl','${id}')">Loss</button><button class="btn ghost" onclick="endTrade('manuell','${id}')">Manuell</button>`;
 const todayR = () => todayTrades().reduce((a,x) => a + (+x.R||0), 0);
 const cooldownLeft = () => Math.max(0, S.get('cooldownUntil', 0) - Date.now());
 const biasToday = () => { const b = S.get('lastBias', null); return b && b.date === today() ? b : null; };
@@ -1784,13 +1805,14 @@ addEventListener('pagehide', saveNav);
 function restoreNav(){
   const n = LS.get('nav', null); if (!n || !n.t) return false;
   const age = Date.now() - n.t;
-  if (S.get('active', null) || needsOnboarding()) return false;
+  if (needsOnboarding()) return false;
   if (n.v === 'flow' && n.st && age < 10*60000){
     const b = biasToday();
-    if (!b || b.b === 'neutral' || cooldownLeft() > 0 || tradesToday() >= cfg.maxTrades || todayR() <= -cfg.lossLimit) return false;
+    if (!b || b.b === 'neutral' || cooldownLeft() > 0 || usedToday() >= cfg.maxTrades || todayR() <= -cfg.lossLimit) return false;
     st = n.st; if (st.dir !== b.b){ st.dir = b.b; st.setupOk = false; st.ticks = null; }
     fi = Math.max(0, Math.min(+n.fi || 0, FLOW.length - 1)); step(); return true;
   }
+  if (openTrades().length){ inTrade(); return true; }
   if (age > 30*60000) return false;
   if (n.v === 'day'){ dayCheck(n.thenStart); return true; }
   const f = ({journal, settings, profile})[n.v]; if (!f) return false;
@@ -1805,14 +1827,15 @@ function restoreNav(){
 function home(){
   if (needsDisclaimer()) return disclaimer();
   curView = 'home'; progress(null);
-  if (S.get('active', null)) return inTrade();
   if (needsOnboarding()) return onboarding();
-  const n = tradesToday(), cd = cooldownLeft(), r = todayR(), b = biasToday();
+  const n = usedToday(), open = openTrades(), cd = cooldownLeft(), r = todayR(), b = biasToday();
   const locked = cd>0 || n>=cfg.maxTrades || r <= -cfg.lossLimit;
   const biasChip = !b ? `<button class="chip warn" onclick="dayCheck()">Tages-Check <b>offen</b></button>`
     : `<button class="chip" onclick="dayCheck()">Bias <b style="color:${b.b==='long'?'var(--green)':b.b==='short'?'var(--red)':'var(--mut)'}">${b.b==='long'?'Long':b.b==='short'?'Short':'Neutral'}</b> ✎</button>`;
+  const openRows = open.length ? `<div class="openlist">${open.map(a => `<button class="openrow" onclick="inTrade('${a.id}')"><span class="livedot"></span><b>${esc(a.coin||'Trade')} ${a.dir==='long'?'LONG':'SHORT'}</b><span>offen · ${sinceTxt(a)}</span><em>Öffnen →</em></button>`).join('')}</div>` : '';
   render(`<div class="home">
-    <h1>Bereit für einen Trade?</h1>
+    ${openRows}
+    <h1>${open.length ? 'Noch ein Trade?' : 'Bereit für einen Trade?'}</h1>
     <p class="sub">Unter einer Minute. Erst die Checkliste, dann der Trade.</p>
     <div class="bigwrap">
       ${locked?'':'<div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div>'}
@@ -1844,13 +1867,21 @@ function start(){
   stopTimers();
   if (needsOnboarding()) return onboarding();
   if (cooldownLeft()>0) return cooldownView();
-  if (tradesToday()>=cfg.maxTrades) return stopView('limit');
+  if (usedToday()>=cfg.maxTrades) return stopView('limit');
   if (todayR() <= -cfg.lossLimit) return stopView('verlustlimit');
   const b = biasToday();
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
   const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. Kein neuer Trade ${cfg.newsWin} Minuten davor und danach.`);
   if (usOpenBlock()) return stopView('usopen', `Die US-Börse hat um ${usOpenLocal()} Uhr geöffnet. In den ersten ${cfg.usOpenBlock} Minuten keine neuen Trades.`);
+  const o = openTrades();
+  if (o.length && !start._ok){
+    const rTot = o.reduce((x, a) => x + (+a.risk || cfg.risk), 0);
+    return modal(`<div class="tag" style="color:var(--gold)">⚠ Schon ${o.length === 1 ? 'ein Trade' : o.length + ' Trades'} offen</div>
+      <div class="q">Noch einen dazu?</div>
+      <p class="hint">Gerade riskierst du ${fmt(rTot,2)} %. Mit einem weiteren Trade sind es ca. ${fmt(rTot + cfg.risk,2)} % gleichzeitig. Laufen die Trades in dieselbe Richtung, verlieren sie oft auch zusammen.</p>
+      <div class="row"><button class="btn ghost" onclick="closeModal()">Lieber nicht</button><button class="btn pri" onclick="closeModal(); start._ok = true; start(); start._ok = false;">Zur Checkliste</button></div>`);
+  }
   const ls = S.get('lastStrat', ''); st = {dir: b.b, risk: cfg.risk, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
@@ -2081,24 +2112,28 @@ function commit(){
 function enterTrade(){
   curView = 'intrade';
   progress(4); $$('.phase').forEach(p=>p.classList.add('done'));
-  S.set('active', {dir:st.dir, coin:st.coin||'', strat:st.strat, grade:st.grade, entry:st.entry, sl:st.sl, tp:st.tp, crv:st.crv,
-    riskAmt:st.riskAmt, risk:st.risk, feel:st.feel||'', start:Date.now()});
-  setTimeout(inTrade, 500);
+  const id = 'o' + Date.now().toString(36);
+  setOpen([...openTrades(), {id, dir:st.dir, coin:st.coin||'', strat:st.strat, grade:st.grade, entry:st.entry, sl:st.sl, tp:st.tp, crv:st.crv,
+    riskAmt:st.riskAmt, risk:st.risk, feel:st.feel||'', start:Date.now()}]);
+  setTimeout(() => inTrade(id), 500);
 }
 
 /* ------------------------------------------------------------------
    Im Trade
 ------------------------------------------------------------------ */
-function inTrade(){
-  curView = 'intrade'; progress(null);
-  const a = S.get('active', null); if (!a) return home();
+function inTrade(id){
+  stopTimers(); curView = 'intrade'; progress(null); closeModal();
+  const a = getOpen(id || curOpen); if (!a) return home();
+  curOpen = a.id; const others = openTrades().filter(x => x.id !== a.id);
   render(`<div class="card">
+    ${backBtn('home()')}
+    ${others.length ? `<div class="chips small opensw">${openTrades().map(x => `<button class="${x.id===a.id?'on':''}" onclick="inTrade('${x.id}')">${esc(x.coin||'Trade')} ${x.dir==='long'?'L':'S'}</button>`).join('')}</div>` : ''}
     <div class="live"><span class="livedot"></span><span class="tag" style="margin:0;color:var(--green)">Im Trade · ${esc(a.coin||'')} ${a.dir==='long'?'LONG':'SHORT'} · ${esc(a.strat||'')}</span></div>
     <div class="clock" id="clock">00:00:00</div>
     <div class="plan">
       <div class="kpi"><div class="v">${fmt(a.entry,4)}</div><div class="l">Einstieg</div></div>
-      <div class="kpi bad"><div class="v">${fmt(a.sl,4)}</div><div class="l">Stop</div></div>
-      <div class="kpi good"><div class="v">${fmt(a.tp,4)}</div><div class="l">Ziel</div></div>
+      <div class="kpi bad"><div class="v">${fmt(a.sl,4)}</div><div class="l">Stop Loss</div></div>
+      <div class="kpi good"><div class="v">${fmt(a.tp,4)}</div><div class="l">Take Profit</div></div>
       <div class="kpi"><div class="v">${fmt(a.riskAmt)}</div><div class="l">Risiko USDT</div></div>
     </div>
     <div class="reminder" id="rem">${REMIND[0]}</div>
@@ -2110,11 +2145,8 @@ function inTrade(){
       <button class="temp" onclick="tempt('nervoes')">Nervös am Chart</button>
     </div>
     <p class="hint" style="margin:20px 0 0">Trade beendet?</p>
-    <div class="ends">
-      <button class="btn green" onclick="endTrade('tp')">Ziel</button>
-      <button class="btn red" onclick="endTrade('sl')">Stop</button>
-      <button class="btn ghost" onclick="endTrade('manuell')">Manuell</button>
-    </div>
+    <div class="ends">${endBtns(a.id)}</div>
+    <div class="row" style="margin-top:14px"><button class="btn ghost" style="flex:1" onclick="start()">+ Weiteren Trade über die Checkliste</button></div>
   </div>`);
   let ri = 0;
   const tick = () => { const c = $('#clock'); if (!c) return; const s = Math.max(0, Math.floor((Date.now()-a.start)/1000));
@@ -2125,7 +2157,7 @@ function inTrade(){
 }
 function tempt(k){
   const t = TEMPT[k];
-  const a = Object.assign({}, S.get('active', {})); a.impulse = (a.impulse||0)+1; S.set('active', a);
+  setOpen(openTrades().map(x => x.id === curOpen ? Object.assign({}, x, {impulse: (x.impulse||0) + 1}) : x));
   modal(`<div class="tag" style="color:var(--gold)">⚠ Impuls erkannt</div>
     <div class="q">${esc(t.t)}</div><p class="hint">${esc(t.x)}</p>
     <div class="henry"><b>Merke:</b> ${esc(t.h)}</div>
@@ -2144,15 +2176,16 @@ function readRules(id){ const r = {}; $$(`#${id} button`).forEach(b => r[b.datas
 /* Nach dem Trade: Einstieg, Stop und Ziel sind bekannt – nur noch beantworten, wie er ausging.
    Ergebnis rechnet die App (R und USDT); „Plan eingehalten?“ wird bewusst gefragt, nicht vorausgefüllt. */
 function rFromExit(a, exit){ const d = a.dir === 'long' ? 1 : -1, risk = Math.abs(a.entry - a.sl); return risk > 0 && isFinite(exit) ? d * (exit - a.entry) / risk + 0 : NaN; }
-function endTrade(art){
+function endTrade(art, id){
   stopTimers(); curView = 'end'; closeModal();
-  const a = S.get('active', null); if (!a) return home();
-  st.end = {art, R: art==='tp' ? a.crv : art==='sl' ? -1 : NaN, exit: art==='tp' ? a.tp : art==='sl' ? a.sl : null, kept: null};
-  const title = {tp:'Ziel erreicht', sl:'Stop getroffen – ein Datenpunkt', manuell:'Manuell geschlossen'}[art];
+  const a = getOpen(id || curOpen); if (!a) return home();
+  curOpen = a.id;
+  st.end = {id: a.id, art, R: art==='tp' ? a.crv : art==='sl' ? -1 : NaN, exit: art==='tp' ? a.tp : art==='sl' ? a.sl : null, kept: null};
+  const title = {tp:'Profit – Take Profit erreicht', sl:'Loss – Stop Loss getroffen. Ein Datenpunkt.', manuell:'Manuell geschlossen'}[art];
   render(`<div class="card">
-    ${backBtn('inTrade()')}<div class="tag">● Nach dem Trade</div>
+    ${backBtn(`inTrade('${a.id}')`)}<div class="tag">● Nach dem Trade</div>
     <div class="q">${title}</div>
-    <p class="hint small">${esc(a.coin||'')} ${a.dir==='long'?'LONG':'SHORT'} · Einstieg ${fmt(a.entry,4)} · Stop ${fmt(a.sl,4)} · Ziel ${fmt(a.tp,4)}</p>
+    <p class="hint small">${esc(a.coin||'')} ${a.dir==='long'?'LONG':'SHORT'} · Einstieg ${fmt(a.entry,4)} · SL ${fmt(a.sl,4)} · TP ${fmt(a.tp,4)}</p>
     <div class="resbox" id="resbox"></div>
     <div class="f" id="exitf" ${art==='manuell'?'':'hidden'}><label for="exit">Ausstiegskurs</label>
       <div class="coinrow"><input id="exit" inputmode="decimal" autocomplete="off" placeholder="z. B. ${fmt(a.entry,4)}"><button type="button" class="mini" id="be">Break-even</button></div></div>
@@ -2189,7 +2222,7 @@ function endTrade(art){
 }
 function cleanLink(v){ v = String(v||'').trim(); return /^https:\/\/[^\s]+$/.test(v) ? v.slice(0,300) : ''; }
 function saveTrade(art){
-  const a = S.get('active', null); if (!a) return home();
+  const a = getOpen(st.end && st.end.id); if (!a) return home();
   const R = st.end && isFinite(st.end.R) ? +st.end.R.toFixed(2) : NaN;
   if (!isFinite(R)){ const ex = $('#exit'); if (ex){ $('#exitf').hidden = false; ex.focus(); ex.style.borderColor='var(--red)'; } return; }
   const rules = readRules('rules'), files = $('#shotf') ? [...$('#shotf').files] : [];
@@ -2198,7 +2231,7 @@ function saveTrade(art){
     art, exit: exitPx, rules, plan: said === false ? false : Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null, riskUsd: isFinite(a.riskAmt) ? +(+a.riskAmt).toFixed(2) : null,
     note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true};
   addTrade(t); attachShots(t.id, files);
-  S.set('active', null);
+  setOpen(openTrades().filter(x => x.id !== a.id)); curOpen = null;
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
   if (mins>0) S.set('cooldownUntil', Date.now()+mins*60000);
   const kept = said !== false && Object.values(rules).every(Boolean) && !readMistakes('mist').length; st.end = null;
@@ -2286,10 +2319,9 @@ function journal(){
   curView = 'journal'; progress(null); closeModal();
   const arr = filtered(), k = kpis(arr), stops = S.get('stops', []);
   const RANGES = [['7','7 Tage'],['30','30 Tage'],['all','Alles']];
-  const act = S.get('active', null), mins = act ? Math.max(1, Math.round((Date.now() - act.start) / 60000)) : 0;
-  const openCard = act ? `<div class="opencard"><div><b>Offener Trade</b> · ${esc(act.coin||'')} ${act.dir==='long'?'LONG':'SHORT'} · ${mins < 120 ? `seit ${mins} Min.` : `seit ${Math.round(mins/60)} Std.`}</div>
+  const openCard = openTrades().map(act => `<div class="opencard"><div><b>Offener Trade</b> · ${esc(act.coin||'')} ${act.dir==='long'?'LONG':'SHORT'} · ${sinceTxt(act)}</div>
       <p class="hint small" style="margin:4px 0 10px">Wie ist er ausgegangen?</p>
-      <div class="ends"><button class="btn green" onclick="endTrade('tp')">Ziel</button><button class="btn red" onclick="endTrade('sl')">Stop</button><button class="btn ghost" onclick="endTrade('manuell')">Manuell</button></div></div>` : '';
+      <div class="ends">${endBtns(act.id)}</div></div>`).join('');
   const head = openCard + `<div class="tag">● Journal</div>
     <div class="tabs"><button class="${jTab==='stats'?'on':''}" onclick="jTab='stats';journal()">Übersicht</button><button class="${jTab==='list'?'on':''}" onclick="jTab='list';journal()">Trades (${arr.length})</button></div>
     ${chipRow('jr', RANGES, jRange, 'small')}${simple() && new Set(cache.journal.map(t => t.strat)).size < 2 ? '' : chipRow('js', [['alle','Alle Strategien'], ...strats()], jStrat, 'small')}`;
