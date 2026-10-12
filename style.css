@@ -383,3 +383,21 @@ details.howto p{margin:6px 0;line-height:1.45}
 .brand .mark{height:19px;width:auto;display:block;flex:0 0 auto;overflow:visible}
 .brand .mark .ln{stroke:var(--gold)}
 .brand .mark .dt{fill:var(--gold)}
+
+/* Nach dem Trade: Ergebnis automatisch */
+.resbox{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);margin:10px 0 6px}
+.resbox b{font-size:32px;font-weight:900;letter-spacing:-.5px}
+.resbox span{color:var(--mut);font-size:15px}
+.resbox.good{border-color:rgba(32,197,138,.5)}.resbox.good b{color:var(--green)}
+.resbox.bad{border-color:rgba(246,70,93,.5)}.resbox.bad b{color:var(--red)}
+.keptrow .btn{flex:1}
+.keptrow .btn.on{border-color:var(--red);color:var(--red)}
+details.more{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+details.more summary{cursor:pointer;color:var(--mut);font-size:14px;list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:"+ "}
+details.more[open] summary::before{content:"– "}
+.opencard{border:1px solid rgba(32,197,138,.45);background:rgba(32,197,138,.06);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.opencard .ends{margin-top:0}
+.opencard .ends{display:flex;gap:8px}
+.opencard .ends .btn{flex:1;padding:11px 8px}

@@ -820,7 +820,21 @@ Object.assign(I18N_EN, {
   'Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.': 'One week alone says little – what matters is the range over many trades.',
   'Im normalen Schwankungsbereich deiner Wochen (Ø # R).': 'Within the normal range of your weeks (avg # R).',
   'Noch zu wenige Wochen für einen Vergleich mit deinem Durchschnitt.': 'Not enough weeks yet to compare with your average.',
-  '· danach': '· then'
+  '· danach': '· then',
+  'Ausstiegskurs': 'Exit price',
+  'Break-even': 'Break-even',
+  'Anderer Ausstiegskurs? Anpassen': 'Different exit price? Adjust',
+  'Hast du dich an deinen Plan gehalten?': 'Did you stick to your plan?',
+  '✓ Ja, alles nach Plan': '✓ Yes, all by plan',
+  '✗ Nein': '✗ No',
+  'Welche Regel hast du gebrochen? Antippen.': 'Which rule did you break? Tap it.',
+  'Was war der Fehler? (optional, ehrlich hilft dir am meisten)': 'What was the mistake? (optional – honesty helps you most)',
+  'Notiz, Screenshot, Chart-Link (optional)': 'Note, screenshot, chart link (optional)',
+  'Ausstiegskurs eingeben – die App rechnet das Ergebnis aus.': 'Enter the exit price – the app calculates the result.',
+  'Offener Trade': 'Open trade',
+  'Wie ist er ausgegangen?': 'How did it end?',
+  '· seit # Min.': '· for # min',
+  '· seit # Std.': '· for # h'
 });
 
 /* Zusammengesetzte Texte mit eigenen Inhalten (Coin, Strategie, Wochenziel) */
@@ -831,7 +845,7 @@ I18N_PARTS.push(
   [/^(\s*)Letzte Woche wolltest du: „Wenn (.*), dann (.*)\.“ Hat das geklappt\?/, '$1Last week you wanted: “If $2, then $3.” Did it work?'],
   [/^(\s*)Das hat nicht geklappt: /, '$1That didn\'t work: '],
   [/^(\s*)CRV ([\d.,]+) – dein Minimum ist ([\d.,]+)\./, '$1R:R $2 – your minimum is $3.'],
-  [/ – kostet dich /g, ' – costs you '], [/ · zusammen/, ' · total']
+  [/ – kostet dich /g, ' – costs you '], [/ · seit (\d+) Min\./, ' · for $1 min'], [/ · seit (\d+) Std\./, ' · for $1 h'], [/ · zusammen/, ' · total']
 );
 /* ==================================================================
    Gewohnheit & Lernen
@@ -1942,37 +1956,67 @@ function rulesRow(id, rules){
   return `<div class="chips rules" id="${id}">${RULES.map(([k,l])=>`<button type="button" data-v="${k}" class="${rules[k]!==false?'on':''}">${l}</button>`).join('')}</div>`;
 }
 function readRules(id){ const r = {}; $$(`#${id} button`).forEach(b => r[b.dataset.v] = b.classList.contains('on')); return r; }
+/* Nach dem Trade: Einstieg, Stop und Ziel sind bekannt – nur noch beantworten, wie er ausging.
+   Ergebnis rechnet die App (R und USDT); „Plan eingehalten?“ wird bewusst gefragt, nicht vorausgefüllt. */
+function rFromExit(a, exit){ const d = a.dir === 'long' ? 1 : -1, risk = Math.abs(a.entry - a.sl); return risk > 0 && isFinite(exit) ? d * (exit - a.entry) / risk + 0 : NaN; }
 function endTrade(art){
-  stopTimers(); curView = 'end';
+  stopTimers(); curView = 'end'; closeModal();
   const a = S.get('active', null); if (!a) return home();
-  const R = art==='tp' ? a.crv : art==='sl' ? -1 : null;
+  st.end = {art, R: art==='tp' ? a.crv : art==='sl' ? -1 : NaN, exit: art==='tp' ? a.tp : art==='sl' ? a.sl : null, kept: null};
+  const title = {tp:'Ziel erreicht', sl:'Stop getroffen – ein Datenpunkt', manuell:'Manuell geschlossen'}[art];
   render(`<div class="card">
-    <div class="tag">● Nach dem Trade</div>
-    <div class="q">${art==='tp'?'Ziel erreicht':art==='sl'?'Stop getroffen – ein Datenpunkt':'Manuell geschlossen'}</div>
-    <div class="f"><label for="rr">Ergebnis in R</label><input id="rr" inputmode="decimal" value="${R!==null?fmt(R):''}" placeholder="z. B. ${fmt(0.5,1)}"></div>
-    <div class="f"><label>An welche Regeln hast du dich gehalten? Antippen, was du gebrochen hast.</label>${rulesRow('rules', art==='manuell'?{tp:false}:{})}</div>
-    <div class="f"><label>War ein Fehler dabei? (optional, ehrlich hilft dir am meisten)</label>${mistakeRow('mist', [])}</div>
-    <div class="f"><label for="note">1 % besser beim nächsten Mal (optional)</label><input id="note" placeholder="z. B. auf Kerzenschluss warten" autocomplete="off"></div>
-    ${shotInput('shotf')}
-    <div class="f"><label for="link">Chart-Link (optional, z. B. TradingView)</label><input id="link" type="url" placeholder="https://www.tradingview.com/x/…" autocomplete="off"></div>
-    <div class="row"><button class="btn pri" onclick="saveTrade('${art}')">Speichern</button></div>
+    ${backBtn('inTrade()')}<div class="tag">● Nach dem Trade</div>
+    <div class="q">${title}</div>
+    <p class="hint small">${esc(a.coin||'')} ${a.dir==='long'?'LONG':'SHORT'} · Einstieg ${fmt(a.entry,4)} · Stop ${fmt(a.sl,4)} · Ziel ${fmt(a.tp,4)}</p>
+    <div class="resbox" id="resbox"></div>
+    <div class="f" id="exitf" ${art==='manuell'?'':'hidden'}><label for="exit">Ausstiegskurs</label>
+      <div class="coinrow"><input id="exit" inputmode="decimal" autocomplete="off" placeholder="z. B. ${fmt(a.entry,4)}"><button type="button" class="mini" id="be">Break-even</button></div></div>
+    ${art!=='manuell' ? '<button type="button" class="linkbtn" id="adj">Anderer Ausstiegskurs? Anpassen</button>' : ''}
+    <div class="lbl3">Hast du dich an deinen Plan gehalten?</div>
+    <div class="row keptrow"><button class="btn green" id="k_yes">✓ Ja, alles nach Plan</button><button class="btn ghost" id="k_no">✗ Nein</button></div>
+    <div id="broke" hidden>
+      <div class="f"><label>Welche Regel hast du gebrochen? Antippen.</label>${rulesRow('rules', {})}</div>
+      <div class="f"><label>Was war der Fehler? (optional, ehrlich hilft dir am meisten)</label>${mistakeRow('mist', [])}</div>
+    </div>
+    <details class="more"><summary>Notiz, Screenshot, Chart-Link (optional)</summary>
+      <div class="f"><label for="note">1 % besser beim nächsten Mal (optional)</label><input id="note" placeholder="z. B. auf Kerzenschluss warten" autocomplete="off"></div>
+      ${shotInput('shotf')}
+      <div class="f"><label for="link">Chart-Link (optional, z. B. TradingView)</label><input id="link" type="url" placeholder="https://www.tradingview.com/x/…" autocomplete="off"></div>
+    </details>
+    <div class="row" id="saverow" hidden><button class="btn pri" onclick="saveTrade('${art}')">Speichern</button></div>
   </div>`);
-  later(()=>{ bindChips('rules', null, true); bindChips('mist', null, true); if (R===null) $('#rr')?.focus(); });
+  later(()=>{
+    bindChips('rules', null, true); bindChips('mist', null, true);
+    const upd = () => { const R = st.end.R, box = $('#resbox'); if (!box) return;
+      box.className = 'resbox ' + (isFinite(R) ? (R > 0 ? 'good' : R < 0 ? 'bad' : '') : '');
+      box.innerHTML = isFinite(R) ? `<b>${sgn(R)} R</b><span>${isFinite(a.riskAmt) ? '≈ ' + sgn(R * a.riskAmt) + ' USDT' : ''}</span>` : '<span>Ausstiegskurs eingeben – die App rechnet das Ergebnis aus.</span>'; };
+    const ex = $('#exit');
+    ex.oninput = () => { ex.style.borderColor = ''; const v = num(ex.value); st.end.exit = isFinite(v) ? v : null; st.end.R = rFromExit(a, v); upd(); };
+    $('#be').onclick = () => { ex.value = decStr(a.entry); ex.oninput(); };
+    if ($('#adj')) $('#adj').onclick = () => { $('#exitf').hidden = false; $('#adj').hidden = true; ex.value = decStr(st.end.exit); ex.focus(); };
+    $('#k_yes').onclick = () => {
+      if (!isFinite(st.end.R)){ $('#exitf').hidden = false; ex.focus(); ex.style.borderColor = 'var(--red)'; return; }
+      st.end.kept = true; $$('#rules button').forEach(b => b.classList.add('on')); $$('#mist button').forEach(b => b.classList.remove('on')); saveTrade(art); };
+    $('#k_no').onclick = () => { st.end.kept = false; $('#broke').hidden = false; $('#saverow').hidden = false;
+      $('#k_no').classList.add('on'); $('#k_yes').classList.remove('green'); $('#k_yes').classList.add('ghost'); };
+    upd(); if (art === 'manuell') ex.focus();
+  });
 }
 function cleanLink(v){ v = String(v||'').trim(); return /^https:\/\/[^\s]+$/.test(v) ? v.slice(0,300) : ''; }
 function saveTrade(art){
   const a = S.get('active', null); if (!a) return home();
-  const R = num($('#rr').value);
-  if (!isFinite(R)){ $('#rr').focus(); $('#rr').style.borderColor='var(--red)'; return; }
+  const R = st.end && isFinite(st.end.R) ? +st.end.R.toFixed(2) : NaN;
+  if (!isFinite(R)){ const ex = $('#exit'); if (ex){ $('#exitf').hidden = false; ex.focus(); ex.style.borderColor='var(--red)'; } return; }
   const rules = readRules('rules'), files = $('#shotf') ? [...$('#shotf').files] : [];
+  const said = st.end ? st.end.kept : null, exitPx = st.end && isFinite(st.end.exit) ? st.end.exit : null;
   const t = {date:new Date().toISOString(), coin:a.coin||'', strat:a.strat||'', grade:a.grade||'', dir:a.dir, entry:a.entry, sl:a.sl, tp:a.tp, R,
-    art, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null, riskUsd: isFinite(a.riskAmt) ? +(+a.riskAmt).toFixed(2) : null,
+    art, exit: exitPx, rules, plan: said === false ? false : Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null, riskUsd: isFinite(a.riskAmt) ? +(+a.riskAmt).toFixed(2) : null,
     note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true};
   addTrade(t); attachShots(t.id, files);
   S.set('active', null);
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
   if (mins>0) S.set('cooldownUntil', Date.now()+mins*60000);
-  const kept = Object.values(rules).every(Boolean) && !readMistakes('mist').length;
+  const kept = said !== false && Object.values(rules).every(Boolean) && !readMistakes('mist').length; st.end = null;
   if (kept){ confetti(); Snd.kept(); }
   cooldownView(R, kept);
 }
@@ -2057,7 +2101,11 @@ function journal(){
   curView = 'journal'; progress(null); closeModal();
   const arr = filtered(), k = kpis(arr), stops = S.get('stops', []);
   const RANGES = [['7','7 Tage'],['30','30 Tage'],['all','Alles']];
-  const head = `<div class="tag">● Journal</div>
+  const act = S.get('active', null), mins = act ? Math.max(1, Math.round((Date.now() - act.start) / 60000)) : 0;
+  const openCard = act ? `<div class="opencard"><div><b>Offener Trade</b> · ${esc(act.coin||'')} ${act.dir==='long'?'LONG':'SHORT'} · ${mins < 120 ? `seit ${mins} Min.` : `seit ${Math.round(mins/60)} Std.`}</div>
+      <p class="hint small" style="margin:4px 0 10px">Wie ist er ausgegangen?</p>
+      <div class="ends"><button class="btn green" onclick="endTrade('tp')">Ziel</button><button class="btn red" onclick="endTrade('sl')">Stop</button><button class="btn ghost" onclick="endTrade('manuell')">Manuell</button></div></div>` : '';
+  const head = openCard + `<div class="tag">● Journal</div>
     <div class="tabs"><button class="${jTab==='stats'?'on':''}" onclick="jTab='stats';journal()">Übersicht</button><button class="${jTab==='list'?'on':''}" onclick="jTab='list';journal()">Trades (${arr.length})</button></div>
     ${chipRow('jr', RANGES, jRange, 'small')}${chipRow('js', [['alle','Alle Strategien'], ...strats()], jStrat, 'small')}`;
   let body;
