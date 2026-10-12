@@ -401,3 +401,35 @@ details.more[open] summary::before{content:"– "}
 .opencard .ends{margin-top:0}
 .opencard .ends{display:flex;gap:8px}
 .opencard .ends .btn{flex:1;padding:11px 8px}
+
+/* ---------- Einsteigerfreundlich ---------- */
+/* Navigation unten in der Daumenzone (Hoober 2013) – in Abläufen ausgeblendet, damit nichts ablenkt */
+.app{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;gap:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  background:rgba(8,8,10,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.tabbar button{flex:1;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px 5px;border:0!important;border-radius:12px!important;color:var(--mut);font-size:11px;font-weight:600;background:none}
+.tabbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar button.on{color:var(--gold)}
+.tabbar button:active{background:rgba(255,255,255,.05)}
+body[data-view=flow] .tabbar,body[data-view=day] .tabbar,body[data-view=end] .tabbar,body[data-view=onboard] .tabbar,body[data-view=account] .tabbar{display:none}
+body[data-view=flow] .app,body[data-view=day] .app,body[data-view=end] .app,body[data-view=onboard] .app{padding-bottom:40px}
+/* Begriffe antippen = kurze Erklärung */
+[data-term]{cursor:help}
+[data-term]::after{content:"?";display:inline-grid;place-items:center;width:14px;height:14px;margin-left:5px;border-radius:50%;border:1px solid currentColor;font-size:9px;font-weight:800;line-height:1;opacity:.55;vertical-align:1px;text-transform:none;letter-spacing:0}
+.chip[data-term]::after{opacity:.45}
+/* Erste Schritte */
+.fsteps{margin:22px auto 6px;max-width:440px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.fshead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.fshead b{font-size:16px}.fshead span{color:var(--mut);font-size:13px}
+.fsbar{height:6px;border-radius:9px;background:var(--line);margin:10px 0 8px;overflow:hidden}
+.fsbar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:9px;transition:width .6s}
+.fsitem{display:flex;align-items:center;gap:12px;width:100%;padding:10px 4px;border-radius:10px;text-align:left;font-size:15px;color:var(--txt)}
+.fsitem:disabled{cursor:default}
+.fsitem.ok{color:var(--mut)}.fsitem.ok span:nth-child(2){text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+.fsbox{flex:0 0 26px;height:26px;border-radius:8px;border:1.5px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:800;color:var(--mut)}
+.fsitem.ok .fsbox{background:var(--green);border-color:var(--green);color:#03231a}
+.fsitem.next{background:rgba(255,255,255,.04)}.fsitem.next .fsbox{border-color:var(--gold);color:var(--gold)}
+.fsitem em{margin-left:auto;font-style:normal;color:var(--gold);font-size:13px;font-weight:700;white-space:nowrap}
+.fshide{display:block;margin:6px auto 0;font-size:13px}
+ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
+.jstats.three{grid-template-columns:repeat(3,1fr)}

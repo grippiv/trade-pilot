@@ -834,7 +834,64 @@ Object.assign(I18N_EN, {
   'Offener Trade': 'Open trade',
   'Wie ist er ausgegangen?': 'How did it end?',
   '· seit # Min.': '· for # min',
-  '· seit # Std.': '· for # h'
+  '· seit # Std.': '· for # h',
+  "Einstellungen": "Settings",
+  "? Kurz erklärt": "? Quick explainer",
+  "R – dein Risiko als Maßeinheit": "R – your risk as a unit",
+  "R ist das, was du pro Trade riskierst. Riskierst du # USDT, ist # R = # USDT. # R heißt: doppelt so viel gewonnen, wie du riskiert hast. So kannst du Trades vergleichen, egal wie groß dein Konto ist.": "R is what you risk per trade. If you risk # USDT, # R = # USDT. # R means you won twice what you risked. That way you can compare trades no matter how big your account is.",
+  "CRV – Chance zu Risiko": "R:R – reward to risk",
+  "Wie viel kannst du gewinnen im Vergleich zu dem, was du riskierst? CRV # heißt: Dein Ziel ist doppelt so weit weg wie dein Stop. Mit CRV # bist du schon bei jedem dritten Gewinner bei plus minus null.": "How much can you win compared to what you risk? R:R # means your target is twice as far away as your stop. With R:R # you already break even if every third trade is a winner.",
+  "Bias – deine Richtung für heute": "Bias – your direction for today",
+  "Long (steigend), Short (fallend) oder Neutral. Du suchst dann nur Trades in diese Richtung. Neutral heißt: heute kein Trade – und das ist völlig in Ordnung.": "Long (rising), short (falling) or neutral. You then only look for trades in that direction. Neutral means: no trade today – and that's completely fine.",
+  "Wie oft du dich an deinen eigenen Plan gehalten hast – egal, ob der Trade Gewinn gebracht hat. Das ist die wichtigste Zahl, die du komplett selbst in der Hand hast.": "How often you stuck to your own plan – no matter whether the trade made money. It's the most important number that is completely in your control.",
+  "Trefferquote": "Win rate",
+  "Anteil deiner Trades mit Gewinn. Allein sagt sie wenig: Auch # % können profitabel sein, wenn deine Gewinner größer sind als deine Verlierer.": "Share of your trades that made money. On its own it says little: even # % can be profitable if your winners are bigger than your losers.",
+  "Alle Gewinne geteilt durch alle Verluste. Über # heißt: Du verdienst Geld. Über # ist gut.": "All wins divided by all losses. Above # means you make money. Above # is good.",
+  "Drawdown": "Drawdown",
+  "Der größte Rückgang vom bisherigen Höchststand deines Kontos. Er zeigt, wie hart deine schlechteste Phase war.": "The largest drop from your account's previous peak. It shows how rough your worst stretch was.",
+  "Ø R pro Trade": "Avg R per trade",
+  "Wie viel R du im Schnitt pro Trade gewinnst oder verlierst. Über # heißt: Dein System verdient auf Dauer Geld.": "How much R you win or lose per trade on average. Above # means your system makes money over time.",
+  "Edge – echter Vorteil oder Glück?": "Edge – real advantage or luck?",
+  "Eine Edge ist ein echter Vorteil deines Systems. Ob du eine hast, zeigt sich erst nach vielen Trades – meist # bis # Vorher kann ein gutes Ergebnis auch Glück sein.": "An edge is a real advantage of your system. Whether you have one only shows after many trades – usually # to # Before that, a good result can also be luck.",
+  "Der Preis, bei dem die Börse deine Position zwangsweise schließt, weil dein eingesetztes Geld aufgebraucht ist. Er muss immer hinter deinem Stop liegen.": "The price at which the exchange force-closes your position because your margin is used up. It must always be beyond your stop.",
+  "Die Summe all deiner Ergebnisse in R – also unterm Strich.": "The sum of all your results in R – the bottom line.",
+  "Erste Schritte": "First steps",
+  "# von # erledigt": "# of # done",
+  "Strategie eingerichtet": "Strategy set up",
+  "Ersten Tages-Check machen": "Do your first daily check",
+  "Ersten Trade über die Checkliste starten": "Start your first trade through the checklist",
+  "Trade abschließen und Ergebnis eintragen": "Close the trade and log the result",
+  "App auf den Home-Bildschirm holen": "Add the app to your home screen",
+  "Ersten Wochenrückblick machen": "Do your first weekly review",
+  "Jetzt →": "Now →",
+  "Ausblenden": "Hide",
+  "● App installieren": "● Install the app",
+  "Hol dir NoTilt auf den Home-Bildschirm": "Get NoTilt on your home screen",
+  "Dann öffnest du die App mit einem Tipp – wie jede andere App. Und du kannst Erinnerungen bekommen.": "Then you open it with one tap – like any other app. And you can get reminders.",
+  "In Safari unten auf das Teilen-Symbol tippen": "In Safari, tap the Share icon at the bottom",
+  "„Zum Home-Bildschirm“ wählen": "Choose “Add to Home Screen”",
+  "Oben rechts „Hinzufügen“ tippen": "Tap “Add” in the top right",
+  "In Chrome oben rechts auf ⋮ tippen": "In Chrome, tap ⋮ in the top right",
+  "„App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen": "Choose “Install app” or “Add to Home screen”",
+  "In Chrome: rechts in der Adressleiste auf das Installieren-Symbol klicken": "In Chrome: click the install icon on the right of the address bar",
+  "In Safari am Mac: Ablage → „Zum Dock hinzufügen“": "In Safari on Mac: File → “Add to Dock”",
+  "Hab ich gemacht": "Done",
+  "● Willkommen bei NoTilt": "● Welcome to NoTilt",
+  "Wie lange tradest du schon?": "How long have you been trading?",
+  "Damit die App nur zeigt, was du gerade brauchst. Du kannst es jederzeit in den Einstellungen ändern.": "So the app only shows what you need right now. You can change it later in settings.",
+  "Ich fange gerade erst an": "I'm just getting started",
+  "Seit ein paar Monaten": "For a few months",
+  "Länger als ein Jahr": "More than a year",
+  "Mehr Kennzahlen und Auswertungen": "More stats and analysis",
+  "Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)": "More limits (R:R, leverage, breaks, news)",
+  "Ansicht": "View",
+  "Einfach": "Simple",
+  "Alle Details": "All details",
+  "Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.": "Simple: only the essentials, details on request. All details: every stat visible right away.",
+  "Stärken & Schwächen, Treffer, Drawdown": "Strengths & weaknesses, win rate, drawdown",
+  'Später einrichten': 'Set up later',
+  'Design & Töne': 'Design & sounds',
+  'Daten: Backup & Löschen': 'Data: backup & delete'
 });
 
 /* Zusammengesetzte Texte mit eigenen Inhalten (Coin, Strategie, Wochenziel) */
@@ -958,12 +1015,12 @@ function edgeCI(arr){
 }
 function edgeHtml(arr){
   const e = edgeCI(arr);
-  if (!e) return `<div class="edge"><div class="lbl2">Edge oder Zufall?</div><div class="mutedtxt">Ab 5 Trades zeigt dir die App, in welcher Spanne dein echter Ø R pro Trade wahrscheinlich liegt.</div></div>`;
+  if (!e) return `<div class="edge"><div class="lbl2" data-term="Edge">Edge oder Zufall?</div><div class="mutedtxt">Ab 5 Trades zeigt dir die App, in welcher Spanne dein echter Ø R pro Trade wahrscheinlich liegt.</div></div>`;
   const span = Math.max(Math.abs(e.lo), Math.abs(e.hi), .5) * 1.15, pos = v => 50 + 50 * v / span;
   const verdict = e.lo > 0 ? `<b class="good">Edge belegt</b> – selbst im ungünstigen Fall liegst du im Plus.`
     : e.hi < 0 ? `<b class="bad">So verliert das System</b> – auch im günstigen Fall liegt der Ø unter null.`
     : `<b>Noch offen</b> – ${e.more ? `ca. ${e.more > 999 ? 'sehr viele' : e.more} weitere Trades` : 'mehr Trades'} nötig, bis das Ergebnis kein Zufall mehr sein kann.`;
-  return `<div class="edge"><div class="lbl2">Edge oder Zufall?</div>
+  return `<div class="edge"><div class="lbl2" data-term="Edge">Edge oder Zufall?</div>
     <div>Dein Ø liegt mit 95 % Wahrscheinlichkeit zwischen <b>${sgn(e.lo)} R</b> und <b>${sgn(e.hi)} R</b> pro Trade.</div>
     <div class="cibar" aria-hidden="true"><span class="zero" style="left:50%"></span>
       <span class="range ${e.lo > 0 ? 'good' : e.hi < 0 ? 'bad' : ''}" style="left:${pos(e.lo)}%;width:${pos(e.hi) - pos(e.lo)}%"></span>
@@ -1395,20 +1452,24 @@ function profile(){
     <div class="jstats">
       <div class="kpi ${totalU > 0 ? 'good' : totalU < 0 ? 'bad' : ''}"><div class="v">${k.n ? usd(totalU) : '–'}</div><div class="l">Ergebnis</div></div>
       <div class="kpi ${pct > 0 ? 'good' : pct < 0 ? 'bad' : ''}"><div class="v">${k.n ? (pct >= 0 ? '+' : '') + fmt(pct, 1) + ' %' : '–'}</div><div class="l">vom Startkonto</div></div>
-      <div class="kpi ${k.sum > 0 ? 'good' : k.sum < 0 ? 'bad' : ''}"><div class="v">${k.n ? sgn(k.sum, 1) + ' R' : '–'}</div><div class="l">${k.n} Trades</div></div>
-      <div class="kpi"><div class="v">${k.n ? fmt(k.win, 0) + ' %' : '–'}</div><div class="l">Treffer</div></div>
-      <div class="kpi bad"><div class="v">${k.n ? fmt(dd.maxR, 1) + ' R' : '–'}</div><div class="l">Max. Drawdown</div></div>
-      <div class="kpi"><div class="v">${isFinite(k.pf) ? fmt(k.pf) : k.pf === Infinity ? '∞' : '–'}</div><div class="l">Profit-Faktor</div></div>
+      <div class="kpi ${k.sum > 0 ? 'good' : k.sum < 0 ? 'bad' : ''}"><div class="v">${k.n ? sgn(k.sum, 1) + ' R' : '–'}</div><div class="l" data-term="R">${k.n} Trades</div></div>
+      ${simple() ? '' : `<div class="kpi"><div class="v">${k.n ? fmt(k.win, 0) + ' %' : '–'}</div><div class="l" data-term="Treffer">Treffer</div></div>
+      <div class="kpi bad"><div class="v">${k.n ? fmt(dd.maxR, 1) + ' R' : '–'}</div><div class="l" data-term="DD">Max. Drawdown</div></div>
+      <div class="kpi"><div class="v">${isFinite(k.pf) ? fmt(k.pf) : k.pf === Infinity ? '∞' : '–'}</div><div class="l" data-term="PF">Profit-Faktor</div></div>`}
     </div>
     <div class="eqwrap"><canvas id="eq" height="150" aria-label="Kapitalkurve in R"></canvas></div>
     ${k.n ? `<p class="hint small">Größter Rückgang vom Hoch: <b>${fmt(dd.maxR, 1)} R</b> (≈ ${usd(dd.maxU)})${dd.curR < 0 ? ` · aktuell ${fmt(dd.curR, 1)} R unter dem Hoch` : ' · du stehst am Hoch'}. Längste Serie: ${rn.bw} Gewinne, ${rn.bl} Verluste in Folge.</p>` : ''}
     <div class="lbl3">Kalender</div>
     <div id="cal"></div>
-    <div class="lbl3">Stärken & Schwächen</div>
-    ${best(strat, 'Strategie') + best(coin, 'Coin') + best(sess, 'Tageszeit') || '<p class="hint small">Ab ein paar Trades pro Strategie, Coin und Tageszeit siehst du hier, wo deine Edge liegt.</p>'}
+    ${(() => { const sw = best(strat, 'Strategie') + best(coin, 'Coin') + best(sess, 'Tageszeit') || '<p class="hint small">Ab ein paar Trades pro Strategie, Coin und Tageszeit siehst du hier, wo deine Edge liegt.</p>';
+      return simple() ? `<details class="more"><summary>Stärken & Schwächen, Treffer, Drawdown</summary><div class="jstats">
+        <div class="kpi"><div class="v">${k.n ? fmt(k.win, 0) + ' %' : '–'}</div><div class="l" data-term="Treffer">Treffer</div></div>
+        <div class="kpi bad"><div class="v">${k.n ? fmt(dd.maxR, 1) + ' R' : '–'}</div><div class="l" data-term="DD">Max. Drawdown</div></div>
+        <div class="kpi"><div class="v">${isFinite(k.pf) ? fmt(k.pf) : k.pf === Infinity ? '∞' : '–'}</div><div class="l" data-term="PF">Profit-Faktor</div></div></div>${sw}</details>`
+        : `<div class="lbl3">Stärken & Schwächen</div>${sw}`; })()}
     <div class="lbl3">Disziplin</div>
     <div class="prow"><span>Serie</span><b>${s.cur} ${s.cur === 1 ? 'Tag' : 'Tage'}</b><em>Rekord ${s.best}</em></div>
-    <div class="prow"><span>Regeltreue 30 Tage</span><b>${isFinite(r30) ? fmt(r30, 0) + ' %' : '–'}</b><em>${isFinite(r30) && isFinite(rp) ? (r30 >= rp ? '▲ ' : '▼ ') + 'vorher ' + fmt(rp, 0) + ' %' : ''}</em></div>
+    <div class="prow"><span data-term="Regeltreue">Regeltreue 30 Tage</span><b>${isFinite(r30) ? fmt(r30, 0) + ' %' : '–'}</b><em>${isFinite(r30) && isFinite(rp) ? (r30 >= rp ? '▲ ' : '▼ ') + 'vorher ' + fmt(rp, 0) + ' %' : ''}</em></div>
     ${mc ? `<div class="prow"><span>Teuerster Fehler</span><b class="bad">${esc(mc.l)}</b><em>≈ ${fmt(mc.cost, 1)} R</em></div>` : ''}
     <div class="row"><button class="btn ghost" style="flex:1" onclick="weeklyReview()">Wochenrückblick</button><button class="btn ghost" style="flex:1" onclick="journal()">Zum Journal</button></div>
   </div>`);
@@ -1434,6 +1495,82 @@ function calendar(){
     <p class="hint small">${mN ? `Monat: <b class="${mR >= 0 ? 'good' : 'bad'}">${sgn(mR, 1)} R</b> ≈ ${usd(mU)} · ${mN} Trades` : 'Keine Trades in diesem Monat.'}</p>`;
 }
 function calMove(d){ profMonth = new Date(profMonth.getFullYear(), profMonth.getMonth() + d, 1); calendar(); }
+/* ==================================================================
+   Einsteigerfreundlich: einfache Ansicht, Begriffserklärungen, Erste Schritte
+   – Progressive Disclosure (Nielsen): erst das Nötige, Details auf Wunsch
+   – Weniger gleichzeitige Auswahl (Hick-Hyman, Iyengar & Lepper 2000)
+   – Sichtbarer Fortschritt mit erstem Haken geschenkt (Nunes & Drèze 2006, Kivetz et al. 2006)
+   – Fachbegriffe dort erklären, wo sie auftauchen, statt vorab in einem Tutorial
+   ================================================================== */
+
+/* Einfache Ansicht: Standard für neue Nutzer; wer schon viele Trades hat, sieht alles */
+const simple = () => cfg.mode ? cfg.mode === 'simple' : cache.journal.length < 10;
+
+/* ---------- Begriffe ---------- */
+const TERMS = {
+  R: ['R – dein Risiko als Maßeinheit', 'R ist das, was du pro Trade riskierst. Riskierst du 10 USDT, ist 1 R = 10 USDT. +2 R heißt: doppelt so viel gewonnen, wie du riskiert hast. So kannst du Trades vergleichen, egal wie groß dein Konto ist.'],
+  CRV: ['CRV – Chance zu Risiko', 'Wie viel kannst du gewinnen im Vergleich zu dem, was du riskierst? CRV 2 heißt: Dein Ziel ist doppelt so weit weg wie dein Stop. Mit CRV 2 bist du schon bei jedem dritten Gewinner bei plus minus null.'],
+  Bias: ['Bias – deine Richtung für heute', 'Long (steigend), Short (fallend) oder Neutral. Du suchst dann nur Trades in diese Richtung. Neutral heißt: heute kein Trade – und das ist völlig in Ordnung.'],
+  Regeltreue: ['Regeltreue', 'Wie oft du dich an deinen eigenen Plan gehalten hast – egal, ob der Trade Gewinn gebracht hat. Das ist die wichtigste Zahl, die du komplett selbst in der Hand hast.'],
+  Treffer: ['Trefferquote', 'Anteil deiner Trades mit Gewinn. Allein sagt sie wenig: Auch 40 % können profitabel sein, wenn deine Gewinner größer sind als deine Verlierer.'],
+  PF: ['Profit-Faktor', 'Alle Gewinne geteilt durch alle Verluste. Über 1 heißt: Du verdienst Geld. Über 1,5 ist gut.'],
+  DD: ['Drawdown', 'Der größte Rückgang vom bisherigen Höchststand deines Kontos. Er zeigt, wie hart deine schlechteste Phase war.'],
+  Exp: ['Ø R pro Trade', 'Wie viel R du im Schnitt pro Trade gewinnst oder verlierst. Über 0 heißt: Dein System verdient auf Dauer Geld.'],
+  Edge: ['Edge – echter Vorteil oder Glück?', 'Eine Edge ist ein echter Vorteil deines Systems. Ob du eine hast, zeigt sich erst nach vielen Trades – meist 30 bis 50. Vorher kann ein gutes Ergebnis auch Glück sein.'],
+  Liq: ['Liquidation', 'Der Preis, bei dem die Börse deine Position zwangsweise schließt, weil dein eingesetztes Geld aufgebraucht ist. Er muss immer hinter deinem Stop liegen.'],
+  NetR: ['Netto R', 'Die Summe all deiner Ergebnisse in R – also unterm Strich.']
+};
+function explain(k){
+  const t = TERMS[k]; if (!t) return;
+  modal(`<div class="tag">? Kurz erklärt</div><div class="q">${esc(t[0])}</div><p class="hint">${esc(t[1])}</p>
+    <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-term]');
+  if (!el) return; e.preventDefault(); e.stopPropagation(); explain(el.dataset.term);
+}, true);
+
+/* ---------- Erste Schritte ---------- */
+function firstSteps(){
+  const J = cache.journal, days = S.get('days', {}) || {};
+  return [
+    ['Strategie eingerichtet', true, ''],
+    ['Ersten Tages-Check machen', Object.keys(days).length > 0 || !!S.get('lastBias', null), 'dayCheck()'],
+    ['Ersten Trade über die Checkliste starten', J.some(t => t.checklist) || (S.get('stops', []) || []).length > 0 || !!S.get('active', null), 'start()'],
+    ['Trade abschließen und Ergebnis eintragen', J.some(t => t.checklist), "go('journal')"],
+    ['App auf den Home-Bildschirm holen', isStandalone() || !!LS.get('installDone', false), 'installHelp()'],
+    ['Ersten Wochenrückblick machen', (S.get('reviews', []) || []).length > 0, 'weeklyReview()']
+  ];
+}
+function firstStepsHtml(){
+  if (LS.get('fsHide', false)) return '';
+  const s = firstSteps(), done = s.filter(x => x[1]).length;
+  if (done === s.length) return '';
+  const next = s.findIndex(x => !x[1]);
+  return `<div class="fsteps">
+    <div class="fshead"><b>Erste Schritte</b><span>${done} von ${s.length} erledigt</span></div>
+    <div class="fsbar"><i style="width:${Math.round(done / s.length * 100)}%"></i></div>
+    ${s.map((x, i) => `<button class="fsitem ${x[1] ? 'ok' : ''} ${i === next ? 'next' : ''}" ${x[1] || !x[2] ? 'disabled' : `onclick="${x[2]}"`}><span class="fsbox">${x[1] ? '✓' : i + 1}</span><span>${x[0]}</span>${!x[1] && i === next ? '<em>Jetzt →</em>' : ''}</button>`).join('')}
+    <button class="linkbtn fshide" onclick="LS.set('fsHide', true); home()">Ausblenden</button>
+  </div>`;
+}
+function installHelp(){
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent), android = /Android/.test(navigator.userAgent);
+  const steps = ios ? ['In Safari unten auf das Teilen-Symbol tippen', '„Zum Home-Bildschirm“ wählen', 'Oben rechts „Hinzufügen“ tippen']
+    : android ? ['In Chrome oben rechts auf ⋮ tippen', '„App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen']
+    : ['In Chrome: rechts in der Adressleiste auf das Installieren-Symbol klicken', 'In Safari am Mac: Ablage → „Zum Dock hinzufügen“'];
+  modal(`<div class="tag">● App installieren</div><div class="q">Hol dir NoTilt auf den Home-Bildschirm</div>
+    <p class="hint">Dann öffnest du die App mit einem Tipp – wie jede andere App. Und du kannst Erinnerungen bekommen.</p>
+    <ol class="steps">${steps.map(x => `<li>${x}</li>`).join('')}</ol>
+    <div class="row"><button class="btn ghost" onclick="closeModal()">Später</button><button class="btn pri" onclick="LS.set('installDone', true); closeModal(); home()">Hab ich gemacht</button></div>`);
+}
+
+/* ---------- Navigation unten: aktiven Tab markieren, in Abläufen ausblenden ---------- */
+function markTab(){
+  document.body.dataset.view = curView;
+  const map = {home:'home', journal:'journal', profile:'profile', settings:'settings', review:'profile', intrade:'home', cool:'home', stop:'home'};
+  document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('on', b.dataset.v === map[curView]));
+}
 /* ------------------------------------------------------------------
    Inhalte
 ------------------------------------------------------------------ */
@@ -1554,8 +1691,8 @@ let lastKey = '';
 function render(html, cls=''){
   const stage = $('#stage'), old = stage.firstElementChild;
   const key = curView + ':' + (curView === 'flow' ? fi : '') + ':' + cls, same = old && key === lastKey; lastKey = key;
-  if (same){ const y = window.scrollY; stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo(0, y); saveNav(); return; }
-  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo({top:0,behavior:'smooth'}); saveNav(); };
+  if (same){ const y = window.scrollY; stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo(0, y); saveNav(); markTab(); return; }
+  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo({top:0,behavior:'smooth'}); saveNav(); markTab(); };
   if (old){ old.classList.add('out'); setTimeout(show, 200); } else show();
 }
 const later = fn => setTimeout(fn, 230);
@@ -1637,8 +1774,8 @@ function home(){
     <div class="stats">
       ${biasChip}
       <span class="chip ${n>=cfg.maxTrades?'warn':''}">Trades <b>${n}/${cfg.maxTrades}</b></span>
-      <span class="chip ${r<0?'warn':''}">Heute <b>${sgn(r,1)} R</b></span>
-      <span class="chip">Session <b>${session()}</b></span>
+      <span class="chip ${r<0?'warn':''}" data-term="R">Heute <b>${sgn(r,1)} R</b></span>
+      ${simple() ? '' : `<span class="chip">Session <b>${session()}</b></span>`}
       ${b && b.newsTime ? `<span class="chip">News <b>${esc(b.newsTime)}</b></span>` : ''}
       ${cd>0?`<span class="chip warn">Pause <b id="cdh">${mmss(cd)}</b></span>`:''}
       ${(() => { const sk = streakInfo(); return sk.cur || sk.best ? `<button class="chip streak ${sk.todayDone?'done':''}" onclick="streakInfoModal()">Serie <b>${sk.cur}</b></button>` : ''; })()}
@@ -1646,7 +1783,8 @@ function home(){
     ${reviewDue() ? `<button class="reviewcta" onclick="weeklyReview()"><b>Wochenrückblick</b><span>2 Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.</span></button>` : ''}
     ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
-    <p class="quote" id="quote">${QUOTES[Math.floor(Math.random()*QUOTES.length)]}</p>
+    ${firstStepsHtml()}
+    ${simple() ? '' : `<p class="quote" id="quote">${QUOTES[Math.floor(Math.random()*QUOTES.length)]}</p>`}
     <button class="linkbtn" onclick="addManual()">Trade ohne Checkliste nachtragen</button>
   </div>`);
   let qi = 0;
@@ -1692,7 +1830,7 @@ function dayCheck(thenStart, keep){
     <div class="f"><label>Wichtige News heute (3 Sterne)?</label>
       <div class="seg" id="d_news"><button data-v="nein">Keine</button><button data-v="ja">Ja, um …</button></div>
       <input id="d_time" type="time" value="${esc(st.day.newsTime)}" ${st.day.news==='ja'?'':'hidden'} aria-label="Uhrzeit der News"></div>
-    <div class="f"><label>Dein Bias heute</label>
+    <div class="f"><label data-term="Bias">Dein Bias heute</label>
       <div class="seg" id="d_bias"><button data-v="long" class="lg">Long</button><button data-v="short" class="sh">Short</button><button data-v="neutral">Neutral</button></div></div>
     <div class="f"><label for="d_fokus">Fokus-Coins mit Alert (optional, mit Komma)</label>
       <input id="d_fokus" placeholder="z. B. XRP, SOL, ENA" value="${esc((b.fokus||[]).join(', '))}" autocomplete="off"></div>
@@ -1857,10 +1995,10 @@ function calc(){
   else { ok = true; m = r>2 ? 'Mehr als 2 % Risiko – bewusst so?' : 'Plan ist stimmig.'; }
   const show = filled && isFinite(crv);
   $('#calc').innerHTML = `
-    <div class="kpi ${show?(crv>=cfg.minCRV?'good':'bad'):''}"><div class="v">${show?fmt(crv):'–'}</div><div class="l">CRV</div></div>
+    <div class="kpi ${show?(crv>=cfg.minCRV?'good':'bad'):''}"><div class="v">${show?fmt(crv):'–'}</div><div class="l" data-term="CRV">CRV</div></div>
     <div class="kpi"><div class="v">${isFinite(riskAmt)?fmt(riskAmt):'–'}</div><div class="l">Risiko USDT</div></div>
     <div class="kpi"><div class="v">${show?fmt(vol,0):'–'}</div><div class="l">Position USDT</div></div>
-    <div class="kpi ${show&&fail==='liq'?'bad':''}"><div class="v">${show?fmt(liq,4):'–'}</div><div class="l">Liquidation</div></div>`;
+    <div class="kpi ${show&&fail==='liq'?'bad':''}"><div class="v">${show?fmt(liq,4):'–'}</div><div class="l" data-term="Liq">Liquidation</div></div>`;
   msg.textContent = m; msg.className = 'msg ' + (ok ? 'good' : (fail ? 'bad' : ''));
   b.disabled = !ok && !fail; b.dataset.fail = fail;
   b.textContent = fail ? 'So nicht traden' : 'Plan steht';
@@ -2107,21 +2245,21 @@ function journal(){
       <div class="ends"><button class="btn green" onclick="endTrade('tp')">Ziel</button><button class="btn red" onclick="endTrade('sl')">Stop</button><button class="btn ghost" onclick="endTrade('manuell')">Manuell</button></div></div>` : '';
   const head = openCard + `<div class="tag">● Journal</div>
     <div class="tabs"><button class="${jTab==='stats'?'on':''}" onclick="jTab='stats';journal()">Übersicht</button><button class="${jTab==='list'?'on':''}" onclick="jTab='list';journal()">Trades (${arr.length})</button></div>
-    ${chipRow('jr', RANGES, jRange, 'small')}${chipRow('js', [['alle','Alle Strategien'], ...strats()], jStrat, 'small')}`;
+    ${chipRow('jr', RANGES, jRange, 'small')}${simple() && new Set(cache.journal.map(t => t.strat)).size < 2 ? '' : chipRow('js', [['alle','Alle Strategien'], ...strats()], jStrat, 'small')}`;
   let body;
   if (jTab==='stats'){
-    const ins = insights(arr);
-    body = `<div class="jstats">
-        <div class="kpi"><div class="v">${k.n}</div><div class="l">Trades</div></div>
-        <div class="kpi"><div class="v">${k.n?fmt(k.win,0)+' %':'–'}</div><div class="l">Treffer</div></div>
-        <div class="kpi ${k.exp>0?'good':k.exp<0?'bad':''}"><div class="v">${k.n?sgn(k.exp):'–'}</div><div class="l">Ø R / Trade</div></div>
-        <div class="kpi"><div class="v">${isFinite(k.pf)?fmt(k.pf):k.pf===Infinity?'∞':'–'}</div><div class="l">Profit-Faktor</div></div>
-        <div class="kpi ${k.sum>0?'good':k.sum<0?'bad':''}"><div class="v">${k.n?sgn(k.sum,1):'–'}</div><div class="l">Netto R</div></div>
-        <div class="kpi"><div class="v">${k.n?fmt(k.rule,0)+' %':'–'}</div><div class="l">Regeltreue</div></div>
-      </div>
+    const ins = insights(arr), sm = simple();
+    const kTrades = `<div class="kpi"><div class="v">${k.n}</div><div class="l">Trades</div></div>`,
+      kWin = `<div class="kpi"><div class="v">${k.n?fmt(k.win,0)+' %':'–'}</div><div class="l" data-term="Treffer">Treffer</div></div>`,
+      kExp = `<div class="kpi ${k.exp>0?'good':k.exp<0?'bad':''}"><div class="v">${k.n?sgn(k.exp):'–'}</div><div class="l" data-term="Exp">Ø R / Trade</div></div>`,
+      kPf = `<div class="kpi"><div class="v">${isFinite(k.pf)?fmt(k.pf):k.pf===Infinity?'∞':'–'}</div><div class="l" data-term="PF">Profit-Faktor</div></div>`,
+      kNet = `<div class="kpi ${k.sum>0?'good':k.sum<0?'bad':''}"><div class="v">${k.n?sgn(k.sum,1):'–'}</div><div class="l" data-term="NetR">Netto R</div></div>`,
+      kRule = `<div class="kpi"><div class="v">${k.n?fmt(k.rule,0)+' %':'–'}</div><div class="l" data-term="Regeltreue">Regeltreue</div></div>`;
+    const deep = `${edgeHtml(arr)}
+      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div>`;
+    body = (sm ? `<div class="jstats three">${kTrades}${kRule}${kNet}</div>` : `<div class="jstats">${kTrades}${kWin}${kExp}${kPf}${kNet}${kRule}</div>`) + `
       <div class="eqwrap"><canvas id="eq" height="150" aria-label="Kapitalkurve in R"></canvas></div>
-      ${edgeHtml(arr)}
-      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div>
+      ${sm ? `<details class="more"><summary>Mehr Kennzahlen und Auswertungen</summary><div class="jstats">${kWin}${kExp}${kPf}</div>${deep}</details>` : deep}
       <p class="hint small">Von der Checkliste verhinderte Trades: <b>${stops.length}</b></p>
       <button class="reviewcta small" onclick="weeklyReview()"><b>Wochenrückblick</b><span>Woche auswerten und ein Ziel festlegen</span></button>`;
   } else {
@@ -2240,23 +2378,31 @@ function settings(){
     ${stratListHtml(true)}
     ${reminderHtml()}
     <div class="lbl3">Deine Grenzen</div>
-    <div class="grid2">${F.map(f=>`<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`).join('')}</div>
+    ${(() => { const fld = f => `<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`, basic = ['s_konto','s_risk','s_max','s_loss'];
+      return `<div class="grid2">${F.filter(f => basic.includes(f[0])).map(fld).join('')}</div>
+      <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
+    <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
+      <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
     <div class="f tog"><label>Sprache / Language</label><div class="chips small" id="s_lang" translate="no"><button type="button" data-v="de" class="${LANG==='de'?'on':''}">Deutsch</button><button type="button" data-v="en" class="${LANG==='en'?'on':''}">English</button></div></div>
+    <details class="more"><summary>Design & Töne</summary>
     <div class="f tog"><label>Design</label>${chipRow('s_theme', [['cyan','Cyan (Standard)'],['gold','Gold']], document.documentElement.dataset.theme === 'gold' ? 'gold' : 'cyan', 'small')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
       <p class="hint small" style="margin:6px 0 0">Am iPhone: Lautlos-Schalter aus und Lautstärke hoch.</p></div>
+    </details>
     <div class="row"><button class="btn pri" id="s_save" onclick="saveSettings()">Speichern</button></div>
-    <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
     <div class="acct">${accountBlock()}</div>
-    <div class="lbl3">Backup</div>
+    <details class="more"><summary>Daten: Backup & Löschen</summary>
     <div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="exportBackup()">Backup speichern</button><button class="btn ghost" style="flex:1" onclick="$('#imp').click()">Backup laden</button></div>
     <input type="file" id="imp" accept=".json,application/json" hidden onchange="importBackup(this)">
     <p class="msg" id="impmsg"></p>
+    <div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="if(confirmReset(this))home()">Journal & Daten löschen</button></div>
+    </details>
     <p class="disc">NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
   later(() => { bindChips('s_lang', v => { if (v !== LANG){ saveSettings(true); setLang(v); } });
     bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
-    bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); }); bindReminder(); });
+    bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); });
+    bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindReminder(); });
 }
 function saveSettings(quiet){
   if (!$('#s_max')) return;
@@ -2475,9 +2621,22 @@ const needsOnboarding = () => !cfg.onboarded && !cache.journal.length && !(Array
 
 /* Einrichtung beim ersten Start: 1) Strategien wählen 2) Fragen prüfen 3) Grundregeln */
 let ob = null;
-function onboarding(stage=1){
+function onboarding(stage=0){
   stopTimers(); curView = 'onboard'; progress(null); closeModal();
   if (!ob) ob = {pick: new Set(), list: [], i: 0};
+  if (stage===0){
+    render(`<div class="card ob">
+      <div class="tag">● Willkommen bei NoTilt</div>
+      <div class="q">Wie lange tradest du schon?</div>
+      <p class="hint">Damit die App nur zeigt, was du gerade brauchst. Du kannst es jederzeit in den Einstellungen ändern.</p>
+      <div class="opts">
+        <button class="opt" onclick="cfg.mode='simple';onboarding(1)"><span class="k">1</span>Ich fange gerade erst an</button>
+        <button class="opt" onclick="cfg.mode='simple';onboarding(1)"><span class="k">2</span>Seit ein paar Monaten</button>
+        <button class="opt" onclick="cfg.mode='pro';onboarding(1)"><span class="k">3</span>Länger als ein Jahr</button>
+      </div>
+      <div class="row"><button class="btn ghost" style="flex:1" onclick="obSkip()">Später einrichten</button></div>
+    </div>`);
+  }
   if (stage===1){
     render(`<div class="card ob">
       <div class="tag">● Einrichtung 1/3</div>

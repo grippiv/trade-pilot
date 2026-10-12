@@ -30,16 +30,16 @@
 <div class="app">
   <div class="top">
     <div class="brand"><svg class="mark" viewBox="6 56 186 92" aria-hidden="true"><path class="zz" d="M16 122 L38 70 L56 134 L74 84 L92 116 L106 100" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/><path class="ln" d="M106 100 H174" stroke="#00e5ff" stroke-width="13" stroke-linecap="round"/><circle class="dt" cx="176" cy="100" r="12" fill="#00e5ff"/></svg>NoTilt<span class="sync" id="sync"><i></i><span>Verbinde…</span></span></div>
-    <div class="nav">
-      <button onclick="go('home')">Start</button>
-      <button onclick="go('journal')">Journal</button>
-      <button onclick="go('profile')">Profil</button>
-      <button onclick="go('settings')">⚙︎</button>
-    </div>
   </div>
   <div class="progress" id="progress"><div class="phases" id="phases"></div></div>
   <div class="stage" id="stage"></div>
 </div>
+<nav class="nav tabbar" aria-label="Navigation">
+  <button data-v="home" onclick="go('home')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg><span>Start</span></button>
+  <button data-v="journal" onclick="go('journal')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg><span>Journal</span></button>
+  <button data-v="profile" onclick="go('profile')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16"/><path d="M6.5 16l4-5 3 3 4.5-6"/></svg><span>Profil</span></button>
+  <button data-v="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/></svg><span>Einstellungen</span></button>
+</nav>
 <div class="modal" id="modal"><div class="card" id="modalc"></div></div>
 
 <script src="config.js"></script>
