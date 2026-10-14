@@ -1870,7 +1870,7 @@ function home(){
   const biasChip = !b ? `<button class="chip warn" onclick="dayCheck()">Tages-Check <b>offen</b></button>`
     : `<button class="chip" onclick="dayCheck()">Bias <b style="color:${b.b==='long'?'var(--green)':b.b==='short'?'var(--red)':'var(--mut)'}">${b.b==='long'?'Long':b.b==='short'?'Short':'Neutral'}</b> ✎</button>`;
   const openRows = open.length ? `<div class="openlist">${open.map(a => `<button class="openrow" onclick="inTrade('${a.id}')"><span class="livedot"></span><b>${esc(a.coin||'Trade')} ${a.dir==='long'?'LONG':'SHORT'}</b><span>offen · ${sinceTxt(a)}</span><em>Öffnen →</em></button>`).join('')}</div>` : '';
-  render(`<div class="home">
+  render(`<div class="home"><div class="hcol hl">
     ${openRows}
     <h1>${open.length ? 'Noch ein Trade?' : 'Bereit für einen Trade?'}</h1>
     <p class="sub">Unter einer Minute. Erst die Checkliste, dann der Trade.</p>
@@ -1887,13 +1887,14 @@ function home(){
       ${cd>0?`<span class="chip warn">Pause <b id="cdh">${mmss(cd)}</b></span>`:''}
       ${(() => { const sk = streakInfo(); return sk.cur || sk.best ? `<button class="chip streak ${sk.todayDone?'done':''}" onclick="streakInfoModal()">Serie <b>${sk.cur}</b></button>` : ''; })()}
     </div>
+    </div><div class="hcol hr">
     ${reviewDue() ? `<button class="reviewcta" onclick="weeklyReview()"><b>Wochenrückblick</b><span>2 Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.</span></button>` : ''}
     ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
     ${firstStepsHtml()}
     ${simple() ? '' : `<p class="quote" id="quote">${QUOTES[quoteI]}</p>`}
     <button class="linkbtn" onclick="addManual()">Trade ohne Checkliste nachtragen</button>
-  </div>`);
+  </div></div>`);
   timers.push(setInterval(()=>{ const q = $('#quote'); if(!q) return; q.style.opacity = 0;
     setTimeout(()=>{ quoteI=(quoteI+1)%QUOTES.length; q.textContent = QUOTES[quoteI]; q.style.opacity=1; }, 500); }, 7000));
   if (cd>0) timers.push(setInterval(()=>{ const c=$('#cdh'); if(!c) return; const l=cooldownLeft(); if(l<=0){ stopTimers(); Snd.gong(); home(); } else c.textContent=mmss(l); },1000));
@@ -2370,8 +2371,8 @@ function journal(){
       kPf = `<div class="kpi"><div class="v">${isFinite(k.pf)?fmt(k.pf):k.pf===Infinity?'∞':'–'}</div><div class="l" data-term="PF">Profit-Faktor</div></div>`,
       kNet = `<div class="kpi ${k.sum>0?'good':k.sum<0?'bad':''}"><div class="v">${k.n?sgn(k.sum,1):'–'}</div><div class="l" data-term="NetR">Netto R</div></div>`,
       kRule = `<div class="kpi"><div class="v">${k.n?fmt(k.rule,0)+' %':'–'}</div><div class="l" data-term="Regeltreue">Regeltreue</div></div>`;
-    const deep = `${edgeHtml(arr)}
-      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div>`;
+    const deep = `<div class="jdeep">${edgeHtml(arr)}
+      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div></div>`;
     body = (sm ? `<div class="jstats three">${kTrades}${kRule}${kNet}</div>` : `<div class="jstats">${kTrades}${kWin}${kExp}${kPf}${kNet}${kRule}</div>`) + `
       <div class="eqwrap"><canvas id="eq" height="150" aria-label="Kapitalkurve in R"></canvas></div>
       ${sm ? `<details class="more"><summary>Mehr Kennzahlen und Auswertungen</summary><div class="jstats">${kWin}${kExp}${kPf}</div>${deep}</details>` : deep}
