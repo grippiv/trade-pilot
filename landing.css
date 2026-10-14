@@ -161,3 +161,5 @@ footer a{color:var(--mut2)}
 
 /* Logo */
 .brand .mark{height:21px;width:auto;display:block;overflow:visible}
+
+.brand .beta{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--cy);border:1px solid var(--cy);border-radius:6px;padding:4px 6px 3px;margin-left:2px;line-height:1}

@@ -444,6 +444,8 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
 .openrow em{margin-left:auto;font-style:normal;color:var(--green);font-weight:700;font-size:14px;white-space:nowrap}
 .opensw{margin:2px 0 12px}
 
+.brand .beta{flex:0 0 auto;font-family:inherit;font-size:10px;font-weight:800;line-height:1;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold);background:transparent;border-radius:6px;padding:4px 6px 3px;margin-left:2px;cursor:pointer;opacity:.95}
+
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}
 .btn{border-radius:10px}

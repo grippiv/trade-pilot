@@ -674,6 +674,12 @@ Object.assign(I18N_EN, {
   '+ Weiteren Trade über die Checkliste': '+ Another trade via the checklist',
   'Profit – Take Profit erreicht': 'Profit – take profit hit',
   'Loss – Stop Loss getroffen. Ein Datenpunkt.': 'Loss – stop loss hit. Just one data point.',
+  '● Beta': '● Beta',
+  'Du nutzt eine frühe Version von NoTilt': "You're using an early version of NoTilt",
+  'Die App wird gerade mit den ersten Tradern getestet. Manches kann sich noch ändern, und hier und da kann etwas haken. Deine Daten bleiben dabei erhalten – am sichersten mit einem Konto.': 'The app is being tested with its first traders. Some things may still change, and something may glitch here and there. Your data stays safe – safest with an account.',
+  'Danke, dass du dabei bist!': 'Thanks for being part of it!',
+  'Alles klar': 'Got it',
+  'Aktiv ✓ Eine Testnachricht ist unterwegs – sie kommt in ein paar Sekunden.': 'Active ✓ A test notification is on its way – it arrives in a few seconds.',
   'Impressum': 'Legal notice',
   'Datenschutz': 'Privacy',
 
@@ -1174,8 +1180,10 @@ async function pushToggle(){
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' ? LANG : 'de')});
     if (!res.ok) throw new Error(res.error || 'Server');
     cfg.reminder = Object.assign(r, {on: true}); saveCfg();
-    say('Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.', true);
-    setTimeout(settings, 1400);
+    const t = await pushCall({action: 'test'}).catch(() => ({}));
+    const sent = t.results && t.results.some(x => x >= 200 && x < 300);
+    say(sent ? 'Aktiv ✓ Eine Testnachricht ist unterwegs – sie kommt in ein paar Sekunden.' : 'Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.', true);
+    setTimeout(settings, 3000);
   } catch (e){ btn.disabled = false; say('Das hat nicht geklappt: ' + (e && e.message || e)); }
 }
 async function pushTest(btn){
@@ -1629,6 +1637,14 @@ function disclaimer(){
 function discUpd(){ const b = $('#discok'); if (b) b.disabled = $$('.disc1 .ck').some(x => !x.classList.contains('on')); }
 function discAccept(){
   LS.set('discV', DISC_V); cfg.discV = DISC_V; cfg.discAt = new Date().toISOString(); saveCfg(); home();
+}
+
+/* ---------- Beta-Hinweis ---------- */
+function betaInfo(){
+  modal(`<div class="tag">● Beta</div><div class="q">Du nutzt eine frühe Version von NoTilt</div>
+    <p class="hint">Die App wird gerade mit den ersten Tradern getestet. Manches kann sich noch ändern, und hier und da kann etwas haken. Deine Daten bleiben dabei erhalten – am sichersten mit einem Konto.</p>
+    <p class="hint">Danke, dass du dabei bist!</p>
+    <div class="row"><button class="btn pri" onclick="closeModal()">Alles klar</button></div>`);
 }
 /* ------------------------------------------------------------------
    Inhalte
