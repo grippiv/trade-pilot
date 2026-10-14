@@ -77,6 +77,7 @@ const Sync = {
     if (!this.ok) return;
     await this.drain();
     if (this.queue.length) return;          /* offline: lokale Version behalten */
+    const snap = () => JSON.stringify([cache.journal, STATE_KEYS.map(k => cache[k])]), before = snap();
     const st = await sb.from('tp_state').select('data,updated_at').eq('user_id', this.uid).maybeSingle();
     if (st.error){ badge('err'); return; }
     const rows = []; let from = 0;
@@ -88,7 +89,7 @@ const Sync = {
     if (st.data && !this.dirty) applyState(st.data.data || {});
     else if (!st.data || this.dirty) await this.flush();
     cache.journal = rows; LS.set('journal', rows);
-    badge('ok'); refreshView();
+    badge('ok'); if (snap() !== before) refreshView();   /* nur neu zeichnen, wenn sich wirklich etwas geändert hat */
   },
   schedulePull(){ clearTimeout(this.pullT); this.pullT = setTimeout(() => this.pull(), 300); },
   listen(){
@@ -1722,7 +1723,7 @@ const checks = () => (Array.isArray(cfg.checks) && cfg.checks.length) ? cfg.chec
 const RULES = [['bed','Bedingungen'],['ein','Einstieg'],['sl','Stop-Loss'],['tp','Ziel']];
 const GRADES = [['S','Lehrbuch – alles glasklar'],['A','Gut – kleine Abstriche'],['B','Grenzwertig']];
 
-let st = {}, fi = 0, timers = [];
+let st = {}, fi = 0, timers = [], quoteI = Math.floor(Math.random()*6);
 let jTab = 'stats', jRange = '30', jStrat = 'alle';
 
 /* ------------------------------------------------------------------
@@ -1793,8 +1794,9 @@ let lastKey = '';
 function render(html, cls=''){
   const stage = $('#stage'), old = stage.firstElementChild;
   const key = curView + ':' + (curView === 'flow' ? fi : '') + ':' + cls, same = old && key === lastKey; lastKey = key;
-  if (same){ const y = window.scrollY; stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo(0, y); saveNav(); markTab(); return; }
-  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; window.scrollTo({top:0,behavior:'smooth'}); saveNav(); markTab(); };
+  if (same && old._html === html){ saveNav(); markTab(); return; }   /* gleicher Inhalt: nichts neu zeichnen, kein Flackern */
+  if (same){ const y = window.scrollY; stage.innerHTML = `<div class="view ${cls}">${html}</div>`; stage.firstElementChild._html = html; window.scrollTo(0, y); saveNav(); markTab(); return; }
+  const show = () => { stage.innerHTML = `<div class="view ${cls}">${html}</div>`; stage.firstElementChild._html = html; window.scrollTo({top:0,behavior:'smooth'}); saveNav(); markTab(); };
   if (old){ old.classList.add('out'); setTimeout(show, 200); } else show();
 }
 const later = fn => setTimeout(fn, 230);
@@ -1889,12 +1891,11 @@ function home(){
     ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
     ${firstStepsHtml()}
-    ${simple() ? '' : `<p class="quote" id="quote">${QUOTES[Math.floor(Math.random()*QUOTES.length)]}</p>`}
+    ${simple() ? '' : `<p class="quote" id="quote">${QUOTES[quoteI]}</p>`}
     <button class="linkbtn" onclick="addManual()">Trade ohne Checkliste nachtragen</button>
   </div>`);
-  let qi = 0;
   timers.push(setInterval(()=>{ const q = $('#quote'); if(!q) return; q.style.opacity = 0;
-    setTimeout(()=>{ qi=(qi+1)%QUOTES.length; q.textContent = QUOTES[qi]; q.style.opacity=1; }, 500); }, 7000));
+    setTimeout(()=>{ quoteI=(quoteI+1)%QUOTES.length; q.textContent = QUOTES[quoteI]; q.style.opacity=1; }, 500); }, 7000));
   if (cd>0) timers.push(setInterval(()=>{ const c=$('#cdh'); if(!c) return; const l=cooldownLeft(); if(l<=0){ stopTimers(); Snd.gong(); home(); } else c.textContent=mmss(l); },1000));
 }
 
