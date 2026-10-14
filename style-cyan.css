@@ -445,6 +445,13 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
 .opensw{margin:2px 0 12px}
 
 .brand .beta{flex:0 0 auto;font-family:inherit;font-size:10px;font-weight:800;line-height:1;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold);background:transparent;border-radius:6px;padding:4px 6px 3px;margin-left:2px;cursor:pointer;opacity:.95}
+/* Kopfzeile bleibt oben stehen – das Logo rutscht nie unter die Statusleiste (iPhone) */
+.app{padding-top:0}
+.top{position:sticky;top:0;z-index:25;
+  margin:0 calc(-1 * max(16px, env(safe-area-inset-right))) 10px calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding:max(18px, calc(env(safe-area-inset-top) + 12px)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  background:var(--bg)}
+.top::after{content:"";position:absolute;left:0;right:0;top:100%;height:14px;pointer-events:none;background:linear-gradient(var(--bg),rgba(0,0,0,0))}
 
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}
