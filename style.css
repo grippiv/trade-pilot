@@ -493,7 +493,7 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
   body[data-view=journal] .stage .view > .card,body[data-view=profile] .stage .view > .card{max-width:none}
   .jstats:has(> .kpi:nth-child(6)){grid-template-columns:repeat(6,minmax(0,1fr))}
   .jdeep{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
-  .jdeep > *{margin:0!important}
+  .jdeep > *{margin:0!important;align-content:start}
   .jdeep .ins,.jdeep:not(:has(.maebox)) .edge{grid-column:1/-1}
   .jlist{grid-template-columns:1fr 1fr;max-height:68vh}
   .calgrid .cd{aspect-ratio:auto;height:62px}
