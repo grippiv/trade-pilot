@@ -460,6 +460,39 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
 .langlist button.on{border-color:var(--gold);background:rgba(245,197,66,.08)}
 .langlist .lf{font-size:20px;line-height:1}.langlist .ln{flex:1}.langlist .lc{color:var(--gold);font-weight:800}
 
+/* ---------- Pro: Tilt-Meter, Drawdown-Schutz, MAE/MFE ---------- */
+.tilt{display:grid;gap:8px;width:100%;max-width:520px;margin:0 auto 18px;text-align:left;padding:13px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);--tc:var(--green)}
+.tilt.t-warn{--tc:#f0b429;border-color:rgba(240,180,41,.45);background:rgba(240,180,41,.06)}
+.tilt.t-hot{--tc:var(--red);border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.07)}
+.tilt .tl{display:flex;align-items:center;gap:8px}
+.tilt .tn{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+.tilt .tp{font-size:12px;font-weight:700;color:var(--tc);border:1px solid var(--tc);border-radius:999px;padding:1px 9px}
+.tilt .ts{margin-left:auto;font-size:22px;color:var(--txt);font-variant-numeric:tabular-nums}
+.tilt .tbar{position:relative;display:block;height:6px;border-radius:6px;background:var(--line);overflow:hidden}
+.tilt .tbar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--tc);transition:width .6s}
+.tilt .tbar s{position:absolute;top:0;bottom:0;width:2px;background:var(--bg)}
+.tilt .tw{font-size:13px;color:var(--txt);opacity:.85;line-height:1.4}
+.tparts{display:grid;gap:6px;margin:12px 0 4px;font-size:14px}
+.tparts div{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:10px;background:var(--bg2);border:1px solid var(--line)}
+.tparts b{color:#f0b429}
+.excbox{margin:14px 0 4px;padding:12px 14px;border-radius:12px;border:1px dashed var(--line)}
+.excbox .lbl3{margin-top:0}
+.excbox .lbl3 small,.lbl3 small{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:var(--mut);font-size:12px;margin-top:2px}
+.excbox .f{margin-bottom:8px}
+.chips.exc button{min-width:46px;font-variant-numeric:tabular-nums}
+.maebox{display:grid;gap:8px;padding:14px;border-radius:12px;background:#0e1117;border:1px solid var(--line);font-size:14px;line-height:1.45;margin-bottom:12px}
+.maebox b.good{color:var(--green)}
+.maebox .small{font-size:12px}
+.maeq{color:var(--txt)}
+.hbars{display:flex;align-items:flex-end;gap:8px;height:110px;padding:4px 2px 0}
+.hb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;min-width:0}
+.hb i{display:block;width:100%;max-width:34px;min-height:3px;border-radius:5px 5px 0 0;background:#3a4152}
+.hb.on i{background:var(--blue)}
+.hb em{font-style:normal;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.hb span{font-size:11px;color:var(--mut);white-space:nowrap}
+.demobar{position:relative;z-index:30;text-align:center;font-size:12.5px;padding:7px 12px calc(7px);padding-top:max(7px, env(safe-area-inset-top));background:rgba(240,180,41,.14);color:#f0b429;border-bottom:1px solid rgba(240,180,41,.3)}
+.demobar a{color:var(--txt);font-weight:700;margin-left:8px;text-decoration:underline}
+
 /* ---------- Desktop (MacBook & Co.): Navigation als Seitenleiste, Inhalte nutzen die Breite ---------- */
 @media (min-width:1024px){
   body{--side:236px}
@@ -505,3 +538,51 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
   .home{grid-template-columns:minmax(0,1fr) 340px;gap:36px}.home h1{font-size:36px}
   .app{padding:30px 28px 60px}
 }
+
+/* Erkenntnisse: Thema links, Werte als Kästchen rechts */
+.ins{gap:0}
+.ins .lbl2{margin-bottom:4px}
+.irow{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;align-items:center;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.ins .lbl2 + .irow{border-top:0}
+.it{font-size:13px;color:var(--mut)}
+.ichs{display:flex;flex-wrap:wrap;gap:6px}
+.ich{font-size:13px;padding:4px 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:#c9ccd4;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ich b{color:var(--txt);font-weight:700}
+.ich i{font-style:normal;font-size:11px;color:var(--mut);margin-left:5px}
+.ich.w{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.45);color:var(--green)}
+.ich.w b{color:var(--green)}
+.ich.l{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45);color:var(--red)}
+.ich.l b{color:var(--red)}
+@media (max-width:440px){.irow{grid-template-columns:1fr;gap:6px}}
+
+/* „Warum?“ – Erklärung zum Aufklappen */
+details.why{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+details.why summary{cursor:pointer;list-style:none;font-size:14px;font-weight:600;color:var(--gold);display:inline-flex;align-items:center;gap:6px}
+details.why summary::-webkit-details-marker{display:none}
+details.why summary::before{content:"?";display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;font-size:11px;font-weight:800}
+details.why[open] summary{margin-bottom:6px}
+details.why p{margin:0;color:var(--mut);font-size:14px;line-height:1.5}
+.chip.gold{border-color:rgba(240,180,41,.55);color:#f0b429}
+
+/* Trade-Details */
+.tdh{display:flex;align-items:center;gap:10px;margin:2px 0 4px}
+.tdc{font-size:26px;font-weight:800}
+.dirp{font-size:12px;font-weight:800;letter-spacing:1px;padding:3px 9px;border-radius:6px}
+.dirp.lg{color:var(--green);background:rgba(52,211,153,.12)}.dirp.sh{color:var(--red);background:rgba(248,113,113,.12)}
+.tdr{margin-left:auto;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.tdr.good{color:var(--green)}.tdr.bad{color:var(--red)}
+.tdmeta{margin:0 0 14px}
+.tdbar{position:relative;height:26px;margin:4px 0 12px}
+.tdbar::before{content:"";position:absolute;left:0;right:0;top:12px;height:2px;background:var(--line);border-radius:2px}
+.tdbar .zl,.tdbar .zw{position:absolute;top:9px;height:8px;border-radius:4px}
+.tdbar .zl{background:rgba(248,113,113,.35)}.tdbar .zw{background:rgba(52,211,153,.35)}
+.tdbar .mk{position:absolute;top:4px;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--txt)}
+.tdbar .mk.k-sl{background:var(--red)}.tdbar .mk.k-tp{background:var(--green)}.tdbar .mk.k-ex{background:#f0b429;width:12px;height:12px;top:7px;margin-left:-6px;border-radius:50%;border:2px solid var(--bg)}
+.tdgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px}
+.tdgrid .kpi{padding:10px 8px}.tdgrid .kpi .v{font-size:16px}.tdgrid .kpi .v small{font-size:13px;font-weight:700}
+.tdgrid .kpi.gold .v{color:#f0b429}
+.tdrows{margin-top:6px}
+.tdrows .irow:first-child{border-top:0}
+.tdnote{color:var(--txt);font-size:14px;line-height:1.45}
+a.ich{text-decoration:none}
+.ich.ok::before{content:"✓ "}.ich.no::before{content:"✗ "}

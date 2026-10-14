@@ -1,10 +1,42 @@
 /* ------------------------------------------------------------------
    Speicher: lokal (sofort, offline) + Supabase (Konto & Sync)
 ------------------------------------------------------------------ */
+/* Demo mit Beispieldaten (?demo=1): eigener Speicher, kein Konto, echte Daten bleiben unberührt */
+const DEMO = (() => { try { const q = location.search;
+  if (/[?&]demo=1/.test(q)) sessionStorage.setItem('tp_demo', '1'); if (/[?&]demo=0/.test(q)) sessionStorage.removeItem('tp_demo');
+  return sessionStorage.getItem('tp_demo') === '1'; } catch(e){ return false; } })();
+const LSP = DEMO ? 'tpdemo_' : 'tp_';
+/* Pro-Funktionen (Tilt-Meter, Drawdown-Schutz, MAE/MFE) – noch in der Vorschau: an mit ?pro=1, aus mit ?pro=0, im Demo immer an */
+const PRO = DEMO || (() => { try { const q = location.search;
+  if (/[?&]pro=1/.test(q)) localStorage.setItem('tp_pro', '1'); if (/[?&]pro=0/.test(q)) localStorage.removeItem('tp_pro');
+  return localStorage.getItem('tp_pro') === '1'; } catch(e){ return false; } })();
 const LS = {
-  get(k, d){ try{ const v = localStorage.getItem('tp_'+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
-  set(k, v){ try{ localStorage.setItem('tp_'+k, JSON.stringify(v)); }catch(e){} }
+  get(k, d){ try{ const v = localStorage.getItem(LSP+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(LSP+k, JSON.stringify(v)); }catch(e){} }
 };
+function seedDemo(){
+  if (LS.get('journal', null)) return;
+  const now = Date.now(), D = 86400000, coins = ['XRP','SOL','ENA','BTC','ETH'], strats = ['Fair Value Gap','Support & Resistance'];
+  /* Ergebnisse alt → neu; danach ein Drawdown von 4 R, damit Schutz und Tilt-Meter etwas zeigen */
+  const R = [2,-1,2,-1,-1,2,2.5,-1,2,-1,2,-1,-1,2,2,-1,0,2,-1,2,-1,2,2,-1,-1,2,3,-1,2,-1,2,-1,2,-1,2,-1,-1,-1,-1];
+  const MAE = [0,-0.25,-0.25,-0.5,0,-0.25,-0.5,-0.75,-0.25,0,-0.5,-1,-0.25], MFE = [0,1,0.5,0,1.5,0,1,0,0.5,2,0];
+  let wi = 0, li = 0; const j = [];
+  R.forEach((r, i) => {
+    const k = R.length - 1 - i;   /* 0 = neuester */
+    const t = k === 0 ? now - 25*60000 : k === 1 ? now - 20*3600000 : now - (k + 1) * 0.75 * D - (i % 3) * 3600000;
+    const bad = i % 9 === 4, feel = i % 7 === 2 ? 'angst' : 'ruhig';
+    j.push({id: 'jdemo' + i, date: new Date(t).toISOString(), coin: coins[i % 5], strat: strats[i % 3 === 2 ? 1 : 0], grade: ['S','A','A','B'][i % 4], dir: i % 4 === 1 ? 'short' : 'long',
+      R: r, art: r > 0 ? 'tp' : r < 0 ? 'sl' : 'manuell', rules: bad ? {bed:true, ein:false, sl:true, tp:true} : {bed:true, ein:true, sl:true, tp:true}, plan: !bad,
+      err: bad ? ['fomo'] : [], feel, impulse: i % 6 === 5 ? 1 : 0, risk: 1, riskUsd: 10, note: '', link: '', checklist: true,
+      mae: r > 0 ? MAE[wi++ % MAE.length] : r < 0 ? -1 : -0.5, mfe: r < 0 ? MFE[li++ % MFE.length] : r > 0 ? r : 0.5});
+  });
+  const days = {}; j.forEach(t => { const d = new Date(t.date); days[d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')] = {c: 1}; });
+  const d0 = new Date(), td = d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-'+String(d0.getDate()).padStart(2,'0');
+  LS.set('journal', j); LS.set('days', days); LS.set('localMode', true); LS.set('discV', 1);
+  LS.set('cfg', {onboarded: true, discV: 1, maxTrades: 3, lossLimit: 3, mode: 'pro', weekLimit: 5, ddCut: 4});
+  LS.set('lastBias', {b: 'long', date: td, struktur: 'bull', news: 'nein', newsTime: '', fokus: ['XRP','SOL'], note: ''});
+}
+if (DEMO) seedDemo();
 const STATE_KEYS = ['cfg','active','cooldownUntil','lastBias','stops','resetAt','lastStrat','days','weekGoal','reviews'];
 const cache = {};
 STATE_KEYS.forEach(k => cache[k] = LS.get(k, null));
@@ -25,7 +57,7 @@ const DEFAULT_CHECKS_EN = [
   'Confirmation signal is there – after the candle closes, not before',
   'The higher timeframe does not argue against the trade'
 ];
-const DEFAULTS = {maxTrades:2, lossLimit:2, cooldownLoss:15, cooldownWin:5, risk:1, minCRV:2, konto:1000, hebel:5, newsWin:30, usOpenBlock:10,
+const DEFAULTS = {maxTrades:2, lossLimit:2, cooldownLoss:15, cooldownWin:5, risk:1, minCRV:2, konto:1000, hebel:5, newsWin:30, usOpenBlock:10, weekLimit:5, ddCut:4,
   strats:['Fair Value Gap','Support & Resistance','Trendfolge'], checks: DEFAULT_CHECKS};
 const freshDefaults = () => Object.assign({}, DEFAULTS, {strats: DEFAULTS.strats.slice(), checks: DEFAULTS.checks.slice()});
 const cfg = Object.assign(freshDefaults(), S.get('cfg', {}));
@@ -33,7 +65,7 @@ const saveCfg = () => S.set('cfg', JSON.parse(JSON.stringify(cfg)));
 let curView = 'home';
 
 const TPC = window.TP_CONFIG || {};
-const HAS_BACKEND = !!(TPC.SUPABASE_URL && TPC.SUPABASE_KEY && window.supabase && window.supabase.createClient);
+const HAS_BACKEND = !DEMO && !!(TPC.SUPABASE_URL && TPC.SUPABASE_KEY && window.supabase && window.supabase.createClient);
 const sb = HAS_BACKEND ? window.supabase.createClient(TPC.SUPABASE_URL, TPC.SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}}) : null;
 
 /* Warteschlange: Änderungen werden lokal gemerkt und hochgeladen, sobald Internet + Konto da sind */
@@ -219,6 +251,54 @@ const langName = () => { const l = LANGS.find(x => x[0] === LANG) || LANGS[0]; r
    Englisches Wörterbuch. Schlüssel = deutscher Text, Zahlen als #.
    ================================================================== */
 Object.assign(I18N_EN, {
+
+  /* Pro: Tilt-Meter, Drawdown-Schutz, MAE/MFE */
+  'Tilt-Meter': 'Tilt meter', '● Tilt-Meter': '● Tilt meter', 'Erhöht': 'Elevated', 'Hoch': 'High',
+  'Ruhig · # von #': 'Calm · # of #', 'Erhöht · # von #': 'Elevated · # of #', 'Hoch · # von #': 'High · # of #',
+  'Letzter Trade war ein Verlust': 'Last trade was a loss', '# Verluste in Folge': '# losses in a row', 'Letzter Verlust vor # Min.': 'Last loss # min ago',
+  '# von # Trades heute': '# of # trades today', '# Impuls im Trade': '# impulse in trade', '# Impulse im Trade': '# impulses in trade',
+  'Heute eine Regel gebrochen': 'Broke a rule today', 'Heute # Regeln gebrochen': 'Broke # rules today',
+  'Checkliste hat heute #× gestoppt (Gefühl)': 'Checklist stopped you #× today (emotion)', 'Halbes Tageslimit verbraucht': 'Half of daily limit used',
+  'Drawdown-Schutz aktiv': 'Drawdown protection active', 'Zuletzt nervös getradet': 'Last traded nervous',
+  'Für heute lieber aufhören – oder mindestens # Minuten Pause.': 'Better stop for today – or take at least a # minute break.',
+  'Nächster Trade nur mit halbem Risiko (# %).': 'Next trade with half risk only (# %).',
+  'Leichte Signale – weiter nur über die Checkliste.': 'Mild signals – keep going through the checklist only.',
+  'Keine Warnsignale. Kopf frei.': 'No warning signs. Clear head.',
+  'Misst Warnsignale aus deinem Verhalten heute – nicht dein Gefühl. Ab #: halbes Risiko. Ab #: Schluss für heute oder lange Pause.': 'Measures warning signs from your behavior today – not your feelings. From #: half risk. From #: stop for today or take a long break.',
+  'Gerade keine Warnsignale.': 'No warning signs right now.', 'Empfehlung:': 'Recommendation:', '# Min. Pause': '# min break',
+  '● Tilt-Meter: hoch (#)': '● Tilt meter: high (#)', 'Heute lieber Schluss?': 'Call it a day?',
+  'Deine letzten Trades zeigen klare Tilt-Signale:': 'Your last trades show clear tilt signals:',
+  'An solchen Tagen hören Profis auf – der Markt ist morgen auch noch da.': 'On days like this, pros stop – the market will still be there tomorrow.',
+  'Trotzdem, mit ½ Risiko': 'Anyway, with ½ risk',
+  '● Drawdown-Schutz': '● Drawdown protection', 'Du liegst # R unter deinem Hoch': "You're # R below your peak", 'Drawdown-Schutz ist bereit': 'Drawdown protection is ready',
+  'Ab # R Rückgang vom Hoch halbiert NoTilt automatisch dein Risiko. Volles Risiko gibt es wieder nach # Gewinnern in Folge oder einem neuen Hoch.': 'From # R below your peak, NoTilt automatically halves your risk. Full risk comes back after # wins in a row or a new peak.',
+  'Gerade:': 'Now:', 'statt # % pro Trade · Gewinner in Folge:': 'instead of # % per trade · wins in a row:',
+  'So arbeiten Prop-Firmen: In schlechten Phasen kleiner traden, damit aus einem Drawdown kein leeres Konto wird. Wochen-Limit: # R (diese Woche # R).': 'This is how prop firms work: trade smaller in bad phases so a drawdown never empties the account. Weekly limit: # R (this week # R).',
+  'So arbeiten Prop-Firmen: In schlechten Phasen kleiner traden, damit aus einem Drawdown kein leeres Konto wird. Wochen-Limit: aus.': 'This is how prop firms work: trade smaller in bad phases so a drawdown never empties the account. Weekly limit: off.',
+  '½ Risiko: Drawdown-Schutz – du liegst # R unter deinem Hoch. Volles Risiko nach # Gewinnern in Folge.': "½ risk: drawdown protection – you're # R below your peak. Full risk after # wins in a row.",
+  '½ Risiko: Tilt-Meter erhöht (#). Kleiner traden, bis der Kopf wieder ruhig ist.': '½ risk: tilt meter elevated (#). Trade smaller until your head is calm again.',
+  'Wochen-Limit erreicht': 'Weekly limit reached', 'Profis hören in schlechten Phasen auf, bevor aus einer schlechten Woche ein schlechter Monat wird.': 'Pros stop in bad phases before a bad week turns into a bad month.',
+  'Diese Woche # R – dein Limit ist # R. Ab Montag geht es weiter.': 'This week # R – your limit is # R. Back on Monday.',
+  'Schutz': 'Protection', '½ Risiko': '½ risk', 'Woche': 'Week',
+  'Max. Verlust pro Woche (R)': 'Max. loss per week (R)', '½ Risiko ab Drawdown (R)': '½ risk from drawdown (R)', 'Wochen-Limit und Drawdown-Schutz: # = aus.': 'Weekly limit and drawdown protection: # = off.',
+  'Wie weit lief der Trade?': 'How far did the trade run?', 'optional · zeigt dir, ob Stop und Ziel passen': 'optional · shows whether your stop and target fit',
+  'Max. gegen dich (R)': 'Max. against you (R)', 'Max. für dich (R)': 'Max. in your favor (R)',
+  'Max. gegen dich (MAE): der tiefste Punkt im Minus, bevor der Trade endete. Max. für dich (MFE): der höchste Punkt im Plus. Laufen deine Gewinner kaum ins Minus, ist dein Stop vermutlich zu weit. Waren viele Verlierer vorher deutlich im Plus, lohnt sich eine Break-even-Regel.': 'Max. against you (MAE): the deepest point in the red before the trade ended. Max. in your favor (MFE): the highest point in profit. If your winners barely go red, your stop is probably too wide. If many losers were clearly in profit first, a break-even rule pays off.',
+  'Stop & Ziel im Test': 'Stop & target check',
+  'Tipp beim Schließen eines Trades an, wie weit er gegen bzw. für dich lief. Ab # Gewinnern zeigt dir die App, ob dein Stop zu weit ist – ab # Verlierern, ob sich eine Break-even-Regel lohnt.': 'When you close a trade, tap how far it ran against or for you. From # winners the app shows whether your stop is too wide – from # losers, whether a break-even rule pays off.',
+  'Bisher: #/# Gewinner · #/# Verlierer': 'So far: #/# winners · #/# losers',
+  'Wie tief liefen deine Gewinner vor dem Ziel ins Minus?': 'How deep did your winners go red before the target?',
+  'deiner Gewinner liefen nie tiefer als # R.': 'of your winners never went deeper than # R.',
+  'Dein Stop hat wahrscheinlich Luft: Mit einem engeren Stop wäre die Position bei gleichem Risiko größer. Erst im Backtest prüfen, dann umstellen.': 'Your stop probably has room: with a tighter stop the position would be bigger at the same risk. Check it in a backtest first, then switch.',
+  'Deine Gewinner brauchen den Platz – dein Stop sitzt sinnvoll.': 'Your winners need the room – your stop is well placed.',
+  'Gemischtes Bild – dein Stop passt im Großen und Ganzen.': 'Mixed picture – your stop fits overall.',
+  'Erst # Gewinner – ab # wird es belastbar.': 'Only # winners so far – reliable from #.',
+  'deiner Verlierer waren vorher mindestens # R im Plus.': 'of your losers were at least # R in profit first.',
+  'Eine Break-even-Regel ab # R hätte dir grob': 'A break-even rule from # R would have saved you roughly',
+  'gespart. Gegenrechnung: Ein paar Gewinner wären dabei ausgestoppt worden.': '. Counterpoint: a few winners would have been stopped out.',
+  'Deine Verlierer laufen selten erst ins Plus – eine Break-even-Regel brächte wenig.': 'Your losers rarely go into profit first – a break-even rule would add little.',
+  'Demo mit Beispieldaten · deine echten Daten bleiben unberührt': 'Demo with sample data · your real data stays untouched', 'Beenden': 'Exit',
+  'Vorschau-Version mit neuen Pro-Funktionen': 'Preview version with new pro features', 'Mit Beispieldaten ansehen': 'View with sample data',
   /* Start */
   'Bereit für einen Trade?': 'Ready for a trade?',
   'Unter einer Minute. Erst die Checkliste, dann der Trade.': 'Under a minute. Checklist first, then the trade.',
@@ -963,6 +1043,241 @@ I18N_PARTS.push(
   [/^(\s*)CRV ([\d.,]+) – dein Minimum ist ([\d.,]+)\./, '$1R:R $2 – your minimum is $3.'],
   [/ – kostet dich /g, ' – costs you '], [/ · seit (\d+) Min\./, ' · for $1 min'], [/ · seit (\d+) Std\./, ' · for $1 h'], [/ · zusammen/, ' · total']
 );
+
+/* Text-Update (kürzer, „Warum?“), Erkenntnisse, Trade-Zähler, Trade-Details */
+Object.assign(I18N_EN, {
+  'Warum?': 'Why?',
+  'Kein Setup, kein Trade. Charts zu und später wieder reinschauen.': 'No setup, no trade. Close the charts and check back later.',
+  'Du willst traden, weil du etwas tun willst – nicht, weil dein System etwas zeigt. Ein erzwungenes Setup ist meistens der teuerste Trade des Tages.': "You want to trade because you want to do something – not because your system shows something. A forced setup is usually the most expensive trade of the day.",
+  'Revenge-Trade-Gefahr': 'Revenge trade risk',
+  "Nach einem Verlust willst du's zurückholen. Genau deshalb: Pause.": "After a loss you want it back. That's exactly why: take a break.",
+  'Nach Verlusten gehen Trader nachweislich mehr Risiko ein. Mit Abstand und klarem Kopf entscheidest du besser.': 'After losses, traders measurably take more risk. With some distance and a clear head you decide better.',
+  'Der Zug ist abgefahren. Alarm an deiner Zone setzen und warten.': "That train has left. Set an alert at your zone and wait.",
+  '„Der wird sicher groß“ ist kein Setup. Die Checkliste entscheidet.': '“This one is going to be huge” is not a setup. The checklist decides.',
+  'Gier fühlt sich an wie ein guter Instinkt. Sie führt aber zu zu großen Positionen und zu Setups, die dein System nie traden würde.': 'Greed feels like a good instinct. But it leads to oversized positions and setups your system would never trade.',
+  'Heute keine klare Richtung': 'No clear direction today',
+  'Bias neutral heißt: heute kein Trade. Völlig okay.': 'Neutral bias means: no trade today. Totally fine.',
+  'Abwarten ist auch eine Position. Gute Trader traden nur, wenn der Markt klar ist.': 'Waiting is a position too. Good traders only trade when the market is clear.',
+  'Du willst gegen deine Tagesrichtung traden. Lass es – oder mach den Tages-Check neu.': 'You want to trade against your direction for today. Skip it – or redo the daily check.',
+  'Der Bias legt fest, in welche Richtung du suchst. Hat sich der Markt klar gedreht, mach den Check neu – aber nicht mitten im Impuls.': "Your bias sets the direction you look for. If the market has clearly turned, redo the check – but not in the middle of an impulse.",
+  'Nicht alles abgehakt heißt: kein Trade. Alarm setzen und warten.': 'Not everything ticked means: no trade. Set an alert and wait.',
+  'Jede Bedingung ist Teil deines getesteten Systems. Fehlt eine, ist es ein anderer Trade – mit unbekannter Trefferquote.': "Every condition is part of your tested system. If one is missing, it's a different trade – with an unknown win rate.",
+  'Dein Ziel ist zu nah für deinen Stop. Kein Trade.': 'Your target is too close for your stop. No trade.',
+  'Mit kleinem CRV musst du fast jeden Trade gewinnen. Mit CRV # reicht schon jeder dritte Gewinner, um nicht zu verlieren.': 'With a small R:R you have to win almost every trade. With R:R # one winner in three is enough not to lose.',
+  'Mit diesem Hebel fliegst du raus, bevor dein Stop greift. Weniger Hebel oder engerer Stop.': "With this leverage you get liquidated before your stop is hit. Less leverage or a tighter stop.",
+  'Ist dein Geld in der Position aufgebraucht, schließt die Börse sie zwangsweise – dann hilft dir dein Stop nicht mehr.': "Once the money in the position is used up, the exchange closes it by force – then your stop can't help you.",
+  'Trade-Limit erreicht': 'Trade limit reached',
+  "Genug für heute. Morgen geht's weiter.": "That's enough for today. More tomorrow.",
+  'Verlust-Limit erreicht': 'Loss limit reached',
+  'Für heute ist Schluss. Morgen ist ein neuer Tag.': "That's it for today. Tomorrow is a new day.",
+  'Nach Verlusten steigt die Lust auf Risiko. Genau dann schützt dich eine harte Grenze.': 'After losses, the urge to take risk grows. That is exactly when a hard limit protects you.',
+  "Diese Woche # R – dein Limit ist # R. Ab Montag geht's weiter.": 'This week # R – your limit is # R. Back on Monday.',
+  'News um # Uhr. # Min. davor und danach: kein Trade.': 'News at #. # min before and after: no trade.',
+  'Rund um News springt der Kurs oft wild hin und her. Erst beobachten, dann handeln.': 'Around news, price often jumps around wildly. Watch first, then act.',
+  'US-Börse seit # Uhr offen. Die ersten # Min.: kein Trade.': 'US market open since #. First # min: no trade.',
+  'Die ersten Minuten nach dem Börsenstart sind hektisch und täuschen oft. Erst beobachten, dann handeln.': 'The first minutes after the open are hectic and often fake. Watch first, then act.',
+  'Nein. Der Stop bleibt, wo er ist.': 'No. The stop stays where it is.',
+  'Das ist Verlustaversion: Du hältst Verlierer zu lange, weil du hoffst „der dreht schon“. So wird aus einem kleinen Verlust ein großer.': 'That is loss aversion: you hold losers too long, hoping “it will turn”. That is how a small loss becomes a big one.',
+  'Früher raus?': 'Get out early?',
+  'Zu früh raus heißt: Gewinn verschenkt. Dein Ziel steht. Halten.': 'Out too early means: profit given away. Your target stands. Hold.',
+  'Die Angst, Buchgewinn zu verlieren, lässt dich Gewinner zu früh schließen. Über hunderte Trades kostet genau das deine Edge.': 'The fear of losing open profit makes you close winners too early. Over hundreds of trades, exactly that costs you your edge.',
+  'Das ist Gier. Dein Risiko stand schon vorher fest.': 'That is greed. Your risk was set before the trade.',
+  'Nachlegen mitten im Trade erhöht dein Risiko genau dann, wenn du am wenigsten objektiv bist.': 'Adding in the middle of a trade raises your risk exactly when you are least objective.',
+  'Deine Orders stehen – das reicht. Alarm setzen, Handy weg.': 'Your orders are set – that is enough. Set an alert, phone away.',
+  'Jeder Blick auf den Chart ist eine Einladung, einzugreifen. Mit Preisalarmen bei Ziel und Stop musst du nicht mehr hinschauen.': "Every look at the chart is an invitation to interfere. With price alerts at target and stop you don't have to watch.",
+  'Ein Verlust tut doppelt so weh wie ein gleich großer Gewinn. Dein Kopf übertreibt – lass ihn reden.': 'A loss hurts twice as much as an equal win. Your mind exaggerates – let it talk.',
+  'Buchgewinn ist nicht dein Geld. Ziel halten.': 'Open profit is not your money. Hold the target.',
+  'Seit Minuten am Chart? Alarm setzen, Handy weg.': 'Staring at the chart for minutes? Set an alert, phone away.',
+  'Im Minus? Normal. Der Stop bleibt, wo er ist.': 'In the red? Normal. The stop stays where it is.',
+  'Auch nach Gewinnen: nächster Trade nur über die Checkliste.': 'After wins too: next trade only through the checklist.',
+  'Nervös heißt meistens: Risiko zu groß. Mit halbem Risiko ist ein Verlust egal.': "Nervous usually means: risk too big. With half the risk, a loss doesn't matter.",
+  'Du riskierst gerade # %, mit noch einem Trade ca. # %. Gleiche Richtung heißt oft: Sie verlieren zusammen.': 'You are risking # % right now, about # % with one more trade. Same direction often means: they lose together.',
+  'Noch # Trade heute': '# trade left today',
+  'Trades heute': 'Trades today',
+  'Du machst wahrscheinlich zwischen': 'You probably make between',
+  '– noch ca. # Trades, dann weißt du es sicher.': '– about # more trades and you will know for sure.',
+  '– noch ca. sehr viele Trades, dann weißt du es sicher.': '– many more trades until you know for sure.',
+  '– noch mehr Trades, dann weißt du es sicher.': '– a few more trades until you know for sure.',
+  '– selbst im schlechtesten Fall im Plus.': '– in profit even in the worst case.',
+  '– auch im besten Fall im Minus.': '– in the red even in the best case.',
+  'Ab # Trades siehst du hier, ob du wirklich Geld verdienst – oder nur Glück hattest.': 'From # trades you will see here whether you really make money – or just got lucky.',
+  'Nach ein paar Trades siehst du hier, was bei dir funktioniert – und was dich Geld kostet.': 'After a few trades you will see here what works for you – and what costs you money.',
+  'Noch keine Trades in diesem Zeitraum. Trades aus der Checkliste landen automatisch hier.': 'No trades in this period yet. Trades from the checklist land here automatically.',
+  'Für Trades ohne Checkliste – damit deine Statistik ehrlich bleibt.': 'For trades without the checklist – so your stats stay honest.',
+  'Importierte Trades zählen in die Statistik, aber nicht für Regeltreue und Serie.': "Imported trades count in your stats, but not for rule adherence and streak.",
+  'Dein Risiko pro Trade in USDT – damit rechnet die App alles in R um.': 'Your risk per trade in USDT – the app uses it to convert everything to R.',
+  'Plus trotz Regelbrüchen – das war Glück, und Glück wiederholt sich nicht.': "In profit despite broken rules – that was luck, and luck doesn't repeat.",
+  'Minus, aber sauber getradet – normale Schwankung. Weiter so.': 'In the red, but traded cleanly – normal variance. Keep going.',
+  'Für einen Vergleich fehlen noch ein paar Wochen.': 'A few more weeks are needed for a comparison.',
+  'Eine Woche allein sagt wenig.': 'One week alone says little.',
+  'Nach ein paar Trades siehst du hier, welche Strategie, welcher Coin und welche Tageszeit dir am meisten bringt.': 'After a few trades you will see here which strategy, coin and time of day works best for you.',
+  'Ein Tag zählt, wenn du den Tages-Check gemacht und alle Regeln eingehalten hast. Gewinn oder Verlust ist egal.': "A day counts if you did the daily check and kept all your rules. Win or loss doesn't matter.",
+  'Markier nach jedem Trade deine Fehler – dann siehst du hier, welcher dich am meisten kostet.': 'Mark your mistakes after each trade – then you will see here which one costs you the most.',
+  'Nur eins. Als Wenn-dann-Plan – so fällt es dir im richtigen Moment ein.': 'Just one. As an if-then plan – so it comes to mind at the right moment.',
+  'Spanne # bis # R pro Trade · ca. # weitere Trades bis zur Gewissheit.': 'Range # to # R per trade · about # more trades until certain.',
+  'R ist dein Risiko pro Trade. Riskierst du # USDT, ist # R = # USDT. # R heißt: doppelt so viel gewonnen wie riskiert.': 'R is your risk per trade. If you risk # USDT, # R = # USDT. # R means: you won twice what you risked.',
+  'Wie weit ist dein Ziel im Vergleich zum Stop? CRV # heißt: doppelt so weit. Dann reicht schon jeder dritte Gewinner, um nicht zu verlieren.': 'How far is your target compared to your stop? R:R # means: twice as far. Then one winner in three is enough not to lose.',
+  'Long, Short oder Neutral: die Richtung, in der du heute suchst. Neutral heißt: heute kein Trade.': 'Long, short or neutral: the direction you look for today. Neutral means: no trade today.',
+  'Wie oft du dich an deinen Plan gehalten hast – egal ob Gewinn oder Verlust. Die wichtigste Zahl, die du komplett selbst steuerst.': 'How often you stuck to your plan – win or loss. The most important number you fully control.',
+  'Anteil deiner Gewinner. Auch # % reichen, wenn deine Gewinner größer sind als deine Verlierer.': 'Share of your winners. Even # % is enough if your winners are bigger than your losers.',
+  'Alle Gewinne geteilt durch alle Verluste. Über # Du verdienst Geld. Über # gut.': 'All wins divided by all losses. Above # you make money. Above # good.',
+  'Der größte Rückgang vom Höchststand. Zeigt, wie hart deine schlechteste Phase war.': 'The largest drop from the peak. Shows how hard your worst phase was.',
+  'Was du im Schnitt pro Trade machst. Über # Dein System verdient Geld.': 'What you make per trade on average. Above # your system makes money.',
+  'Ein echter Vorteil deines Systems. Ob du einen hast, zeigt sich erst nach vielen Trades – meist # bis # Vorher kann es Glück sein.': 'A real advantage of your system. Whether you have one only shows after many trades – usually # to # Before that it can be luck.',
+  'Bei diesem Preis schließt die Börse deine Position zwangsweise. Er muss immer hinter deinem Stop liegen.': 'At this price the exchange force-closes your position. It must always be beyond your stop.',
+  'Wie tief ein Trade im Minus und wie hoch im Plus war. Laufen deine Gewinner kaum ins Minus, ist dein Stop zu weit. Waren viele Verlierer erst im Plus, lohnt sich Break-even.': 'How deep a trade went into the red and how high into profit. If your winners barely go red, your stop is too wide. If many losers were in profit first, break-even pays off.',
+  /* Erkenntnisse */
+  'Teuerster Fehler': 'Costliest mistake', 'Gehalten': 'Kept', 'Gebrochen': 'Broken', 'Setup-Note': 'Setup grade', 'Gefühl': 'Feeling',
+  'Checkliste': 'Checklist', 'Mit': 'With', 'Ohne': 'Without', 'Impulse': 'Impulses', 'Meist gebrochen': 'Most broken',
+  /* Trade-Details */
+  '● Trade-Details': '● Trade details', 'Ausstieg': 'Exit', 'Ergebnis USDT': 'Result USDT', 'CRV geplant': 'Planned R:R', 'Ausgang': 'Outcome',
+  'Ziel erreicht': 'Target hit', 'Stop getroffen': 'Stop hit', 'Manuell geschlossen': 'Closed manually', 'Nachgetragen': 'Logged later', 'Importiert': 'Imported',
+  'Verlauf': 'Excursion', 'Max. gegen dich': 'Max. against you', 'Max. für dich': 'Max. in your favor', 'Regeln': 'Rules', 'Keine': 'None', 'im Trade': 'in trade',
+  'Chart': 'Chart', 'Chart öffnen ↗': 'Open chart ↗', 'Schließen': 'Close', 'Bearbeiten': 'Edit',
+  'Dauer # Min.': 'Duration # min', 'Dauer # Std. # Min.': 'Duration # h # min', 'Dauer # Tage': 'Duration # days',
+  /* Pro (neu formuliert) */
+  'Misst, wie sehr du heute auf Tilt bist – an deinem Verhalten, nicht am Gefühl. Ab # halbes Risiko. Ab # Schluss für heute.': 'Measures how tilted you are today – from your behavior, not your feelings. From # half risk. From # stop for today.',
+  'Für heute lieber Schluss – oder # Min. Pause.': 'Better stop for today – or take a # min break.',
+  'Leichte Warnsignale – nur über die Checkliste.': 'Mild warning signs – only through the checklist.',
+  "Ab # R unter deinem Hoch halbiert NoTilt dein Risiko. Nach # Gewinnern in Folge gibt's wieder volles Risiko.": 'From # R below your peak, NoTilt halves your risk. After # wins in a row you get full risk again.',
+  'So machen es Prop-Firmen: in schlechten Phasen kleiner traden. Wochen-Limit: # R (diese Woche # R).': 'This is how prop firms do it: trade smaller in bad phases. Weekly limit: # R (this week # R).',
+  'So machen es Prop-Firmen: in schlechten Phasen kleiner traden. Wochen-Limit: aus.': 'This is how prop firms do it: trade smaller in bad phases. Weekly limit: off.',
+  'Tipp beim Schließen an, wie weit der Trade gegen bzw. für dich lief. Ab # Gewinnern siehst du, ob dein Stop passt – ab # Verlierern, ob sich Break-even lohnt.': 'When closing, tap how far the trade ran against or for you. From # winners you see whether your stop fits – from # losers, whether break-even pays off.',
+  'Dein Stop ist wohl zu weit. Enger heißt: größere Position bei gleichem Risiko. Erst backtesten.': 'Your stop is probably too wide. Tighter means: bigger position at the same risk. Backtest first.',
+  'Dein Stop passt – deine Gewinner brauchen den Platz.': 'Your stop fits – your winners need the room.',
+  'Dein Stop passt im Großen und Ganzen.': 'Your stop fits overall.',
+  'Stop auf Einstieg ab # R hätte dir grob': 'Moving your stop to entry at # R would have saved you roughly',
+  'gespart.': '.',
+  'Deine Verlierer sind selten erst im Plus – Break-even bringt dir wenig.': 'Your losers are rarely in profit first – break-even adds little.',
+  'Vorschau: Pro-Funktionen aktiv': 'Preview: pro features on', 'Ausschalten': 'Turn off'
+});
+
+/* Kürzere Texte, Erkenntnisse, Trade-Details (Okt. 2026) */
+Object.assign(I18N_EN, {
+  "Misst, wie sehr du heute auf Tilt bist – an deinem Verhalten, nicht am Gefühl. Ab # halbes Risiko. Ab # Schluss für heute.": "Measures how tilted you are today – by your behavior, not your feelings. From # half risk. From # done for today.",
+  "Für heute lieber Schluss – oder # Min. Pause.": "Better call it a day – or take a # min break.",
+  "Ab # R unter deinem Hoch halbiert NoTilt dein Risiko. Nach # Gewinnern in Folge gibt's wieder volles Risiko.": "From # R below your peak, NoTilt halves your risk. After # wins in a row you get full risk back.",
+  "So machen es Prop-Firmen: in schlechten Phasen kleiner traden. Wochen-Limit: # R (diese Woche # R).": "That's how prop firms do it: trade smaller in bad phases. Weekly limit: # R (this week # R).",
+  "So machen es Prop-Firmen: in schlechten Phasen kleiner traden. Wochen-Limit: aus.": "That's how prop firms do it: trade smaller in bad phases. Weekly limit: off.",
+  "Leichte Warnsignale – nur über die Checkliste.": "Mild warning signs – checklist only.",
+  "Dein Stop ist wohl zu weit. Enger heißt: größere Position bei gleichem Risiko. Erst backtesten.": "Your stop is probably too wide. Tighter means a bigger position at the same risk. Backtest first.",
+  "Dein Stop passt – deine Gewinner brauchen den Platz.": "Your stop fits – your winners need the room.",
+  "Dein Stop passt im Großen und Ganzen.": "Your stop fits overall.",
+  "Mit Stop auf Einstieg ab # R hättest du grob gespart:": "Moving the stop to entry at # R would have saved you roughly:",
+  "Deine Verlierer sind selten erst im Plus – Break-even bringt dir wenig.": "Your losers rarely go into profit first – break-even won't help much.",
+  "Tipp beim Schließen an, wie weit der Trade gegen bzw. für dich lief. Ab # Gewinnern siehst du, ob dein Stop passt – ab # Verlierern, ob sich Break-even lohnt.": "When you close a trade, tap how far it ran against or for you. From # winners you'll see if your stop fits – from # losers, if break-even pays off.",
+  "Warum?": "Why?",
+  "Kein Setup, kein Trade. Charts zu und später wieder reinschauen.": "No setup, no trade. Close the charts and check back later.",
+  "Du willst traden, weil du etwas tun willst – nicht, weil dein System etwas zeigt. Ein erzwungenes Setup ist meistens der teuerste Trade des Tages.": "You want to trade because you want to do something – not because your system shows anything. A forced setup is usually the most expensive trade of the day.",
+  "Revenge-Trade-Gefahr": "Revenge trade risk",
+  "Nach einem Verlust willst du's zurückholen. Genau deshalb: Pause.": "After a loss you want it back. That's exactly why: take a break.",
+  "Nach Verlusten gehen Trader nachweislich mehr Risiko ein. Mit Abstand und klarem Kopf entscheidest du besser.": "After losses, traders demonstrably take more risk. With some distance and a clear head you decide better.",
+  "Der Zug ist abgefahren. Alarm an deiner Zone setzen und warten.": "That train has left. Set an alert at your zone and wait.",
+  "„Der wird sicher groß“ ist kein Setup. Die Checkliste entscheidet.": "“This one's going to be big” is not a setup. The checklist decides.",
+  "Gier fühlt sich an wie ein guter Instinkt. Sie führt aber zu zu großen Positionen und zu Setups, die dein System nie traden würde.": "Greed feels like good instinct. But it leads to oversized positions and setups your system would never take.",
+  "Heute keine klare Richtung": "No clear direction today",
+  "Bias neutral heißt: heute kein Trade. Völlig okay.": "Neutral bias means: no trade today. Totally fine.",
+  "Abwarten ist auch eine Position. Gute Trader traden nur, wenn der Markt klar ist.": "Waiting is a position too. Good traders only trade when the market is clear.",
+  "Du willst gegen deine Tagesrichtung traden. Lass es – oder mach den Tages-Check neu.": "You want to trade against today's direction. Don't – or redo the daily check.",
+  "Der Bias legt fest, in welche Richtung du suchst. Hat sich der Markt klar gedreht, mach den Check neu – aber nicht mitten im Impuls.": "Your bias decides which direction you look for. If the market has clearly turned, redo the check – but not in the middle of an impulse.",
+  "Jede Bedingung ist Teil deines getesteten Systems. Fehlt eine, ist es ein anderer Trade – mit unbekannter Trefferquote.": "Every condition is part of your tested system. If one is missing, it's a different trade – with an unknown win rate.",
+  "Dein Ziel ist zu nah für deinen Stop. Kein Trade.": "Your target is too close for your stop. No trade.",
+  "Mit kleinem CRV musst du fast jeden Trade gewinnen. Mit CRV # reicht schon jeder dritte Gewinner, um nicht zu verlieren.": "With a small R:R you have to win almost every trade. With R:R # one winner in three is enough not to lose.",
+  "Mit diesem Hebel fliegst du raus, bevor dein Stop greift. Weniger Hebel oder engerer Stop.": "With this leverage you get liquidated before your stop hits. Less leverage or a tighter stop.",
+  "Ist dein Geld in der Position aufgebraucht, schließt die Börse sie zwangsweise – dann hilft dir dein Stop nicht mehr.": "Once the money in your position is used up, the exchange force-closes it – then your stop can't help you anymore.",
+  "Trade-Limit erreicht": "Trade limit reached",
+  "Genug für heute. Morgen geht's weiter.": "Enough for today. Back at it tomorrow.",
+  "Verlust-Limit erreicht": "Loss limit reached",
+  "Für heute ist Schluss. Morgen ist ein neuer Tag.": "You're done for today. Tomorrow is a new day.",
+  "Nach Verlusten steigt die Lust auf Risiko. Genau dann schützt dich eine harte Grenze.": "After losses, the urge to take risk goes up. That's exactly when a hard limit protects you.",
+  "Diese Woche # R – dein Limit ist # R. Ab Montag geht's weiter.": "This week # R – your limit is # R. Back on Monday.",
+  "News um # Uhr. # Min. davor und danach: kein Trade.": "News at #. # min before and after: no trade.",
+  "Rund um News springt der Kurs oft wild hin und her. Erst beobachten, dann handeln.": "Around news, price often jumps around wildly. Watch first, then act.",
+  "US-Börse seit # Uhr offen. Die ersten # Min.: kein Trade.": "US market open since #. First # min: no trade.",
+  "Die ersten Minuten nach dem Börsenstart sind hektisch und täuschen oft. Erst beobachten, dann handeln.": "The first minutes after the open are hectic and often misleading. Watch first, then act.",
+  "Nein. Der Stop bleibt, wo er ist.": "No. The stop stays where it is.",
+  "Das ist Verlustaversion: Du hältst Verlierer zu lange, weil du hoffst „der dreht schon“. So wird aus einem kleinen Verlust ein großer.": "That's loss aversion: you hold losers too long hoping “it'll turn around”. That's how a small loss becomes a big one.",
+  "Früher raus?": "Get out early?",
+  "Zu früh raus heißt: Gewinn verschenkt. Dein Ziel steht. Halten.": "Getting out early means giving away profit. Your target stands. Hold.",
+  "Die Angst, Buchgewinn zu verlieren, lässt dich Gewinner zu früh schließen. Über hunderte Trades kostet genau das deine Edge.": "Fear of losing paper profit makes you close winners too early. Over hundreds of trades, that's exactly what costs you your edge.",
+  "Das ist Gier. Dein Risiko stand schon vorher fest.": "That's greed. Your risk was set beforehand.",
+  "Nachlegen mitten im Trade erhöht dein Risiko genau dann, wenn du am wenigsten objektiv bist.": "Adding mid-trade raises your risk exactly when you're least objective.",
+  "Deine Orders stehen – das reicht. Alarm setzen, Handy weg.": "Your orders are set – that's enough. Set an alert, put the phone away.",
+  "Jeder Blick auf den Chart ist eine Einladung, einzugreifen. Mit Preisalarmen bei Ziel und Stop musst du nicht mehr hinschauen.": "Every look at the chart is an invitation to interfere. With price alerts at target and stop, you don't need to watch.",
+  "Ein Verlust tut doppelt so weh wie ein gleich großer Gewinn. Dein Kopf übertreibt – lass ihn reden.": "A loss hurts twice as much as an equal win. Your head exaggerates – let it talk.",
+  "Buchgewinn ist nicht dein Geld. Ziel halten.": "Paper profit isn't your money. Hold the target.",
+  "Seit Minuten am Chart? Alarm setzen, Handy weg.": "Staring at the chart for minutes? Set an alert, phone away.",
+  "Im Minus? Normal. Der Stop bleibt, wo er ist.": "In the red? Normal. The stop stays where it is.",
+  "Auch nach Gewinnen: nächster Trade nur über die Checkliste.": "After wins too: next trade only through the checklist.",
+  "Nervös heißt meistens: Risiko zu groß. Mit halbem Risiko ist ein Verlust egal.": "Nervous usually means: risk too big. With half the risk, a loss doesn't matter.",
+  "Du riskierst gerade # %, mit noch einem Trade ca. # %. Gleiche Richtung heißt oft: Sie verlieren zusammen.": "You're risking # % right now, about # % with one more trade. Same direction often means: they lose together.",
+  "Noch # Trade heute": "# trade left today",
+  "Trades heute": "Trades today",
+  "Du machst wahrscheinlich zwischen": "You probably make between",
+  "– noch ca. # Trades, dann weißt du es sicher.": "– about # more trades and you'll know for sure.",
+  "– noch ca. sehr viele Trades, dann weißt du es sicher.": "– a lot more trades and you'll know for sure.",
+  "– noch mehr Trades, dann weißt du es sicher.": "– more trades and you'll know for sure.",
+  "– selbst im schlechtesten Fall im Plus.": "– in profit even in the worst case.",
+  "– auch im besten Fall im Minus.": "– in the red even in the best case.",
+  "Ab # Trades siehst du hier, ob du wirklich Geld verdienst – oder nur Glück hattest.": "From # trades you'll see here whether you really make money – or just got lucky.",
+  "Nach ein paar Trades siehst du hier, was bei dir funktioniert – und was dich Geld kostet.": "After a few trades you'll see here what works for you – and what costs you money.",
+  "Noch keine Trades in diesem Zeitraum. Trades aus der Checkliste landen automatisch hier.": "No trades in this period yet. Trades from the checklist land here automatically.",
+  "Für Trades ohne Checkliste – damit deine Statistik ehrlich bleibt.": "For trades without the checklist – so your stats stay honest.",
+  "Importierte Trades zählen in die Statistik, aber nicht für Regeltreue und Serie.": "Imported trades count in your stats, but not for rule adherence and streak.",
+  "Dein Risiko pro Trade in USDT – damit rechnet die App alles in R um.": "Your risk per trade in USDT – the app uses it to convert everything into R.",
+  "Teuerster Fehler": "Costliest mistake",
+  "Gehalten": "Kept",
+  "Gebrochen": "Broken",
+  "Setup-Note": "Setup grade",
+  "Gefühl": "Feeling",
+  "Checkliste": "Checklist",
+  "Mit": "With",
+  "Ohne": "Without",
+  "Impulse": "Impulses",
+  "Meist gebrochen": "Most broken",
+  "Plan": "Plan",
+  "● Trade-Details": "● Trade details",
+  "Ergebnis USDT": "Result USDT",
+  "CRV geplant": "Planned R:R",
+  "Ausgang": "Outcome",
+  "Ausstieg": "Exit",
+  "Ziel erreicht": "Target hit",
+  "Stop getroffen": "Stop hit",
+  "Nachgetragen": "Logged later",
+  "Importiert": "Imported",
+  "Verlauf": "How it ran",
+  "Max. gegen dich": "Max. against you",
+  "Max. für dich": "Max. in your favor",
+  "Regeln": "Rules",
+  "Chart": "Chart",
+  "Schließen": "Close",
+  "Bearbeiten": "Edit",
+  "im Trade": "in trade",
+  "Keine": "None",
+  "Dauer # Std. # Min.": "Duration # h # min",
+  "Dauer # Min.": "Duration # min",
+  "Dauer # Tage": "Duration # days",
+  "Spanne # bis # R pro Trade · ca. # weitere Trades bis zur Gewissheit.": "Range # to # R per trade · about # more trades until certain.",
+  "Plus trotz Regelbrüchen – das war Glück, und Glück wiederholt sich nicht.": "In profit despite broken rules – that was luck, and luck doesn't repeat.",
+  "Minus, aber sauber getradet – normale Schwankung. Weiter so.": "In the red, but traded cleanly – normal variance. Keep going.",
+  "Für einen Vergleich fehlen noch ein paar Wochen.": "A few more weeks are needed for a comparison.",
+  "Eine Woche allein sagt wenig.": "One week alone says little.",
+  "Nach ein paar Trades siehst du hier, welche Strategie, welcher Coin und welche Tageszeit dir am meisten bringt.": "After a few trades you'll see here which strategy, coin and time of day works best for you.",
+  "Nur eins. Als Wenn-dann-Plan – so fällt es dir im richtigen Moment ein.": "Just one. As an if-then plan – so it comes to mind at the right moment.",
+  "Ein Tag zählt, wenn du den Tages-Check gemacht und alle Regeln eingehalten hast. Gewinn oder Verlust ist egal.": "A day counts if you did the daily check and followed all your rules. Win or loss doesn't matter.",
+  "Markier nach jedem Trade deine Fehler – dann siehst du hier, welcher dich am meisten kostet.": "Mark your mistakes after each trade – then you'll see here which one costs you most.",
+  "R ist dein Risiko pro Trade. Riskierst du # USDT, ist # R = # USDT. # R heißt: doppelt so viel gewonnen wie riskiert.": "R is your risk per trade. If you risk # USDT, # R = # USDT. # R means: you won twice what you risked.",
+  "Wie weit ist dein Ziel im Vergleich zum Stop? CRV # heißt: doppelt so weit. Dann reicht schon jeder dritte Gewinner, um nicht zu verlieren.": "How far is your target compared to your stop? R:R # means: twice as far. Then one winner in three is enough not to lose.",
+  "Long, Short oder Neutral: die Richtung, in der du heute suchst. Neutral heißt: heute kein Trade.": "Long, short or neutral: the direction you look for today. Neutral means: no trade today.",
+  "Wie oft du dich an deinen Plan gehalten hast – egal ob Gewinn oder Verlust. Die wichtigste Zahl, die du komplett selbst steuerst.": "How often you followed your plan – win or loss. The most important number that's fully in your control.",
+  "Anteil deiner Gewinner. Auch # % reichen, wenn deine Gewinner größer sind als deine Verlierer.": "Share of your winners. Even # % is enough if your winners are bigger than your losers.",
+  "Alle Gewinne geteilt durch alle Verluste. Über # Du verdienst Geld. Über # gut.": "All wins divided by all losses. Above # you make money. Above # good.",
+  "Der größte Rückgang vom Höchststand. Zeigt, wie hart deine schlechteste Phase war.": "The biggest drop from your peak. Shows how rough your worst phase was.",
+  "Was du im Schnitt pro Trade machst. Über # Dein System verdient Geld.": "What you make per trade on average. Above # your system makes money.",
+  "Ein echter Vorteil deines Systems. Ob du einen hast, zeigt sich erst nach vielen Trades – meist # bis # Vorher kann es Glück sein.": "A real advantage of your system. Whether you have one only shows after many trades – usually # to # Before that it can be luck.",
+  "Bei diesem Preis schließt die Börse deine Position zwangsweise. Er muss immer hinter deinem Stop liegen.": "At this price the exchange force-closes your position. It must always be beyond your stop.",
+  "Wie tief ein Trade im Minus und wie hoch im Plus war. Laufen deine Gewinner kaum ins Minus, ist dein Stop zu weit. Waren viele Verlierer erst im Plus, lohnt sich Break-even.": "How deep a trade went into the red and how high into profit. If your winners barely go red, your stop is too wide. If many losers were in profit first, break-even pays off."
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -1074,13 +1389,13 @@ function edgeCI(arr){
 }
 function edgeHtml(arr){
   const e = edgeCI(arr);
-  if (!e) return `<div class="edge"><div class="lbl2" data-term="Edge">Edge oder Zufall?</div><div class="mutedtxt">Ab 5 Trades zeigt dir die App, in welcher Spanne dein echter Ø R pro Trade wahrscheinlich liegt.</div></div>`;
+  if (!e) return `<div class="edge"><div class="lbl2" data-term="Edge">Edge oder Zufall?</div><div class="mutedtxt">Ab 5 Trades siehst du hier, ob du wirklich Geld verdienst – oder nur Glück hattest.</div></div>`;
   const span = Math.max(Math.abs(e.lo), Math.abs(e.hi), .5) * 1.15, pos = v => 50 + 50 * v / span;
-  const verdict = e.lo > 0 ? `<b class="good">Edge belegt</b> – selbst im ungünstigen Fall liegst du im Plus.`
-    : e.hi < 0 ? `<b class="bad">So verliert das System</b> – auch im günstigen Fall liegt der Ø unter null.`
-    : `<b>Noch offen</b> – ${e.more ? `ca. ${e.more > 999 ? 'sehr viele' : e.more} weitere Trades` : 'mehr Trades'} nötig, bis das Ergebnis kein Zufall mehr sein kann.`;
+  const verdict = e.lo > 0 ? `<b class="good">Edge belegt</b> – selbst im schlechtesten Fall im Plus.`
+    : e.hi < 0 ? `<b class="bad">So verliert das System</b> – auch im besten Fall im Minus.`
+    : `<b>Noch offen</b> – ${e.more ? `noch ca. ${e.more > 999 ? 'sehr viele' : e.more} Trades` : 'noch mehr Trades'}, dann weißt du es sicher.`;
   return `<div class="edge"><div class="lbl2" data-term="Edge">Edge oder Zufall?</div>
-    <div>Dein Ø liegt mit 95 % Wahrscheinlichkeit zwischen <b>${sgn(e.lo)} R</b> und <b>${sgn(e.hi)} R</b> pro Trade.</div>
+    <div>Du machst wahrscheinlich zwischen <b>${sgn(e.lo)} R</b> und <b>${sgn(e.hi)} R</b> pro Trade.</div>
     <div class="cibar" aria-hidden="true"><span class="zero" style="left:50%"></span>
       <span class="range ${e.lo > 0 ? 'good' : e.hi < 0 ? 'bad' : ''}" style="left:${pos(e.lo)}%;width:${pos(e.hi) - pos(e.lo)}%"></span>
       <span class="dot" style="left:${pos(e.mean)}%"></span></div>
@@ -1120,10 +1435,10 @@ function weeklyReview(){
     ${g && g.week !== isoWeek() ? `<div class="f"><label>Letzte Woche wolltest du: „Wenn ${esc(g.wenn)}, dann ${esc(g.dann)}.“ Hat das geklappt?</label>
       ${chipRow('rv_rate', [['ja','Ja'],['teils','Teilweise'],['nein','Nein']], null)}</div>` : ''}
     ${top ? `<div class="ins"><div class="lbl2">Dein teuerster Fehler (90 Tage)</div><div><b>${esc(top.l)}</b> – ${top.n}× · kostet dich geschätzt <b class="bad">${fmt(top.cost, 1)} R</b></div></div>`
-      : '<p class="hint small">Markier nach jedem Trade, ob ein Fehler dabei war – dann zeigt dir der Rückblick, welcher dich am meisten kostet.</p>'}
+      : '<p class="hint small">Markier nach jedem Trade deine Fehler – dann siehst du hier, welcher dich am meisten kostet.</p>'}
     ${shotsStrip(arr)}
     <div class="lbl3 first" style="margin-top:14px">Ein Ziel für nächste Woche</div>
-    <p class="hint small">Nur eins. Als Wenn-dann-Plan – so wird es im entscheidenden Moment automatisch abgerufen.</p>
+    <p class="hint small">Nur eins. Als Wenn-dann-Plan – so fällt es dir im richtigen Moment ein.</p>
     <div class="f"><label for="rv_wenn">Wenn …</label><input id="rv_wenn" value="${esc(sug[0])}" maxlength="120" autocomplete="off"></div>
     <div class="f"><label for="rv_dann">… dann …</label><input id="rv_dann" value="${esc(sug[1])}" maxlength="140" autocomplete="off"></div>
     <div class="chips small" id="rv_sug">${Object.entries(IFTHEN).filter(([key]) => key !== suggestKey).slice(0, 4).map(([key, v]) => `<button type="button" data-v="${key}">${esc(MIST_TXT[key] || 'Regel brechen')}</button>`).join('')}</div>
@@ -1278,7 +1593,7 @@ async function loadShotThumbs(){
 function streakInfoModal(){
   const s = streakInfo();
   modal(`<div class="tag">◆ Disziplin-Serie</div><div class="q">${s.cur} ${s.cur===1?'Tag':'Tage'} in Folge</div>
-    <p class="hint">Ein Tag zählt, wenn du vor dem Traden den Tages-Check gemacht und dich bei jedem Trade an deine Regeln gehalten hast. Gewinne spielen keine Rolle – nur dein Verhalten.</p>
+    <p class="hint">Ein Tag zählt, wenn du den Tages-Check gemacht und alle Regeln eingehalten hast. Gewinn oder Verlust ist egal.</p>
     <p class="hint">Tage ohne Trade zählen nicht gegen dich. Nicht zu traden ist nie ein Fehler.</p>
     <p class="hint">Pro Woche fängt <b>ein Joker</b> einen Ausrutscher ab${s.jokerLeft ? ' – diese Woche ist er noch frei.' : ' – diese Woche ist er schon verbraucht.'} Rekord: <b>${s.best}</b>.</p>
     <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
@@ -1423,12 +1738,12 @@ function importRender(){
     <div class="impmap">${Object.entries(IMP_COLS).map(([k, d]) => `<label>${d.label}${d.req ? ' *' : ''}${sel(k)}</label>`).join('')}</div>
     <div class="grid2"><div class="f"><label for="imp_r">1 R entspricht (USDT)</label><input id="imp_r" inputmode="decimal" value="${decStr(IMP.oneR)}"></div>
       <div class="f"><label>Gebühren abziehen</label>${chipRow('imp_fee', [['ja','Ja'],['nein','Nein']], IMP.feeOff ? 'ja' : 'nein', 'small')}</div></div>
-    <p class="hint small">Dein Risiko pro Trade in USDT. Daraus wird jeder Gewinn oder Verlust in R umgerechnet – so sind alte und neue Trades vergleichbar.</p>
+    <p class="hint small">Dein Risiko pro Trade in USDT – damit rechnet die App alles in R um.</p>
     ${!ok ? '<p class="msg bad">Ordne mindestens Zeitpunkt und Gewinn/Verlust einer Spalte zu.</p>'
       : `<div class="impsum"><b>${res.fresh.length}</b> Trades gefunden${res.dup ? ` · ${res.dup} schon im Journal` : ''}${res.fills ? ' · Teil-Ausführungen zusammengefasst' : ''}<br>
         ${span ? `${new Date(span[0]).toLocaleDateString(LOC())} – ${new Date(span[1]).toLocaleDateString(LOC())} · zusammen <b class="${sumR >= 0 ? 'good' : 'bad'}">${sgn(sumR, 1)} R</b>` : ''}</div>
         ${res.fresh.length ? `<div class="imptable">${res.fresh.slice(0, 5).map(t => `<div><span>${new Date(t.date).toLocaleDateString(LOC())}</span><span>${esc(t.coin || '–')} ${t.dir === 'long' ? '▲' : t.dir === 'short' ? '▼' : ''}</span><span class="${t.R >= 0 ? 'good' : 'bad'}">${sgn(t.R)} R</span></div>`).join('')}</div>` : ''}
-        <p class="hint small">Importierte Trades zählen in deine Statistik. Für Regeltreue und Serie zählen sie nicht – dafür fehlen die Angaben aus der Checkliste. Du kannst sie einzeln nachpflegen.</p>
+        <p class="hint small">Importierte Trades zählen in die Statistik, aber nicht für Regeltreue und Serie.</p>
         <div class="row"><button class="btn pri" style="flex:1" ${res.fresh.length ? '' : 'disabled'} onclick="importGo()">${res.fresh.length} Trades importieren</button></div>`}`;
   $$('#imp_body select').forEach(s => s.onchange = () => { IMP.map[s.dataset.k] = +s.value; importRender(); });
   $('#imp_r').onchange = e => { const v = num(e.target.value); if (isFinite(v) && v > 0){ IMP.oneR = v; importRender(); } };
@@ -1475,20 +1790,20 @@ function weekResultHtml(arr, k){
   const r = k.sum, u = arr.reduce((s, t) => s + usdOf(t), 0), base = Math.max(1, cfg.konto - u), pct = u / base * 100;
   const clean = isFinite(k.rule) ? k.rule >= 80 : true;
   const [cls, msg] = r > 0 && clean ? ['good', 'Profitabel und regelkonform – genau so soll es sein.']
-    : r > 0 ? ['warn', 'Plus trotz Regelbrüchen. Vorsicht: Glück wiederholt sich nicht zuverlässig.']
-    : r <= 0 && clean ? ['neutral', 'Minus trotz sauberer Umsetzung – das ist normale Schwankung, dein Prozess stimmt.']
+    : r > 0 ? ['warn', 'Plus trotz Regelbrüchen – das war Glück, und Glück wiederholt sich nicht.']
+    : r <= 0 && clean ? ['neutral', 'Minus, aber sauber getradet – normale Schwankung. Weiter so.']
     : ['bad', 'Minus mit Regelbrüchen – hier liegt dein größter Hebel.'];
   // Vergleich mit früheren Wochen
   const weeks = {}; journalList().forEach(t => { const w = isoWeek(new Date(t.date)); if (w !== isoWeek()) weeks[w] = (weeks[w] || 0) + (+t.R || 0); });
   const vals = Object.values(weeks);
-  let ctx = 'Noch zu wenige Wochen für einen Vergleich mit deinem Durchschnitt.';
+  let ctx = 'Für einen Vergleich fehlen noch ein paar Wochen.';
   if (vals.length >= 4){
     const m = vals.reduce((a, b) => a + b, 0) / vals.length, sd = Math.sqrt(vals.reduce((a, v) => a + (v - m) ** 2, 0) / (vals.length - 1)) || 1, z = (r - m) / sd;
     ctx = z >= 1 ? `Deutlich besser als deine übliche Woche (Ø ${sgn(m, 1)} R).` : z <= -1 ? `Schwächer als deine übliche Woche (Ø ${sgn(m, 1)} R) – prüf, ob es am Markt oder an dir lag.`
       : `Im normalen Schwankungsbereich deiner Wochen (Ø ${sgn(m, 1)} R).`;
   }
   return `<div class="wres ${cls}"><div class="wnum"><b>${sgn(r, 1)} R</b><span>≈ ${usd(u)} · ${pct >= 0 ? '+' : ''}${fmt(pct, 1)} %</span></div>
-    <div>${msg}</div><div class="mutedtxt"><span>${ctx}</span> <span>Eine Woche allein sagt wenig – entscheidend ist die Spanne über viele Trades.</span></div></div>`;
+    <div>${msg}</div><div class="mutedtxt"><span>${ctx}</span> <span>Eine Woche allein sagt wenig.</span></div></div>`;
 }
 
 /* ---------- Profil-Seite ---------- */
@@ -1522,7 +1837,7 @@ function profile(){
     ${k.n ? `<p class="hint small">Größter Rückgang vom Hoch: <b>${fmt(dd.maxR, 1)} R</b> (≈ ${usd(dd.maxU)})${dd.curR < 0 ? ` · aktuell ${fmt(dd.curR, 1)} R unter dem Hoch` : ' · du stehst am Hoch'}. Längste Serie: ${rn.bw} Gewinne, ${rn.bl} Verluste in Folge.</p>` : ''}
     <div class="lbl3">Kalender</div>
     <div id="cal"></div>
-    ${(() => { const sw = best(strat, 'Strategie') + best(coin, 'Coin') + best(sess, 'Tageszeit') || '<p class="hint small">Ab ein paar Trades pro Strategie, Coin und Tageszeit siehst du hier, wo deine Edge liegt.</p>';
+    ${(() => { const sw = best(strat, 'Strategie') + best(coin, 'Coin') + best(sess, 'Tageszeit') || '<p class="hint small">Nach ein paar Trades siehst du hier, welche Strategie, welcher Coin und welche Tageszeit dir am meisten bringt.</p>';
       return simple() ? `<details class="more"><summary>Stärken & Schwächen, Treffer, Drawdown</summary><div class="jstats">
         <div class="kpi"><div class="v">${k.n ? fmt(k.win, 0) + ' %' : '–'}</div><div class="l" data-term="Treffer">Treffer</div></div>
         <div class="kpi bad"><div class="v">${k.n ? fmt(dd.maxR, 1) + ' R' : '–'}</div><div class="l" data-term="DD">Max. Drawdown</div></div>
@@ -1570,17 +1885,18 @@ const simple = () => cfg.mode ? cfg.mode === 'simple' : cache.journal.length < 1
 
 /* ---------- Begriffe ---------- */
 const TERMS = {
-  R: ['R – dein Risiko als Maßeinheit', 'R ist das, was du pro Trade riskierst. Riskierst du 10 USDT, ist 1 R = 10 USDT. +2 R heißt: doppelt so viel gewonnen, wie du riskiert hast. So kannst du Trades vergleichen, egal wie groß dein Konto ist.'],
-  CRV: ['CRV – Chance zu Risiko', 'Wie viel kannst du gewinnen im Vergleich zu dem, was du riskierst? CRV 2 heißt: Dein Ziel ist doppelt so weit weg wie dein Stop. Mit CRV 2 bist du schon bei jedem dritten Gewinner bei plus minus null.'],
-  Bias: ['Bias – deine Richtung für heute', 'Long (steigend), Short (fallend) oder Neutral. Du suchst dann nur Trades in diese Richtung. Neutral heißt: heute kein Trade – und das ist völlig in Ordnung.'],
-  Regeltreue: ['Regeltreue', 'Wie oft du dich an deinen eigenen Plan gehalten hast – egal, ob der Trade Gewinn gebracht hat. Das ist die wichtigste Zahl, die du komplett selbst in der Hand hast.'],
-  Treffer: ['Trefferquote', 'Anteil deiner Trades mit Gewinn. Allein sagt sie wenig: Auch 40 % können profitabel sein, wenn deine Gewinner größer sind als deine Verlierer.'],
-  PF: ['Profit-Faktor', 'Alle Gewinne geteilt durch alle Verluste. Über 1 heißt: Du verdienst Geld. Über 1,5 ist gut.'],
-  DD: ['Drawdown', 'Der größte Rückgang vom bisherigen Höchststand deines Kontos. Er zeigt, wie hart deine schlechteste Phase war.'],
-  Exp: ['Ø R pro Trade', 'Wie viel R du im Schnitt pro Trade gewinnst oder verlierst. Über 0 heißt: Dein System verdient auf Dauer Geld.'],
-  Edge: ['Edge – echter Vorteil oder Glück?', 'Eine Edge ist ein echter Vorteil deines Systems. Ob du eine hast, zeigt sich erst nach vielen Trades – meist 30 bis 50. Vorher kann ein gutes Ergebnis auch Glück sein.'],
-  Liq: ['Liquidation', 'Der Preis, bei dem die Börse deine Position zwangsweise schließt, weil dein eingesetztes Geld aufgebraucht ist. Er muss immer hinter deinem Stop liegen.'],
-  NetR: ['Netto R', 'Die Summe all deiner Ergebnisse in R – also unterm Strich.']
+  R: ['R – dein Risiko als Maßeinheit', 'R ist dein Risiko pro Trade. Riskierst du 10 USDT, ist 1 R = 10 USDT. +2 R heißt: doppelt so viel gewonnen wie riskiert.'],
+  CRV: ['CRV – Chance zu Risiko', 'Wie weit ist dein Ziel im Vergleich zum Stop? CRV 2 heißt: doppelt so weit. Dann reicht schon jeder dritte Gewinner, um nicht zu verlieren.'],
+  Bias: ['Bias – deine Richtung für heute', 'Long, Short oder Neutral: die Richtung, in der du heute suchst. Neutral heißt: heute kein Trade.'],
+  Regeltreue: ['Regeltreue', 'Wie oft du dich an deinen Plan gehalten hast – egal ob Gewinn oder Verlust. Die wichtigste Zahl, die du komplett selbst steuerst.'],
+  Treffer: ['Trefferquote', 'Anteil deiner Gewinner. Auch 40 % reichen, wenn deine Gewinner größer sind als deine Verlierer.'],
+  PF: ['Profit-Faktor', 'Alle Gewinne geteilt durch alle Verluste. Über 1: Du verdienst Geld. Über 1,5: gut.'],
+  DD: ['Drawdown', 'Der größte Rückgang vom Höchststand. Zeigt, wie hart deine schlechteste Phase war.'],
+  Exp: ['Ø R pro Trade', 'Was du im Schnitt pro Trade machst. Über 0: Dein System verdient Geld.'],
+  Edge: ['Edge – echter Vorteil oder Glück?', 'Ein echter Vorteil deines Systems. Ob du einen hast, zeigt sich erst nach vielen Trades – meist 30 bis 50. Vorher kann es Glück sein.'],
+  Liq: ['Liquidation', 'Bei diesem Preis schließt die Börse deine Position zwangsweise. Er muss immer hinter deinem Stop liegen.'],
+  NetR: ['Netto R', 'Die Summe all deiner Ergebnisse in R – also unterm Strich.'],
+  MAE: ['Wie weit lief der Trade?', 'Wie tief ein Trade im Minus und wie hoch im Plus war. Laufen deine Gewinner kaum ins Minus, ist dein Stop zu weit. Waren viele Verlierer erst im Plus, lohnt sich Break-even.']
 };
 function explain(k){
   const t = TERMS[k]; if (!t) return;
@@ -1666,6 +1982,188 @@ function betaInfo(){
     <p class="hint">Danke, dass du dabei bist!</p>
     <div class="row"><button class="btn pri" onclick="closeModal()">Alles klar</button></div>`);
 }
+/* ==================================================================
+   Pro-Werkzeuge
+   – Tilt-Meter: Warnsignale aus deinem Verhalten heute, nicht aus dem Gefühl
+   – Drawdown-Schutz: Wochen-Limit und automatisch halbes Risiko in schlechten Phasen
+   – MAE/MFE: Wie weit lief ein Trade gegen bzw. für dich? Zeigt, ob Stop und Ziel passen
+   ================================================================== */
+
+/* ---------- Drawdown-Schutz ---------- */
+const weekR = () => cache.journal.filter(t => isoWeek(new Date(t.date)) === isoWeek()).reduce((a, t) => a + (+t.R || 0), 0);
+const weekLocked = () => PRO && cfg.weekLimit > 0 && weekR() <= -cfg.weekLimit;
+/* Ab cfg.ddCut R unter dem Hoch: halbes Risiko. Zurück zum vollen Risiko nach 2 Gewinnern in Folge oder neuem Hoch. */
+function ddInfo(){
+  if (!PRO || !(cfg.ddCut > 0)) return {on: false, dd: 0, wins: 0};
+  let eq = 0, peak = 0, on = false, wins = 0;
+  journalList().slice().reverse().forEach(t => {
+    const R = +t.R || 0; eq += R;
+    if (on){ wins = R > 0 ? wins + 1 : 0; if (eq >= peak) on = false; else if (wins >= 2){ on = false; peak = eq; } }
+    if (eq > peak) peak = eq;
+    if (!on && peak - eq >= cfg.ddCut - 1e-9){ on = true; wins = 0; }
+  });
+  return {on, dd: peak - eq, wins};
+}
+function ddModal(){
+  const d = ddInfo();
+  modal(`<div class="tag" style="color:var(--gold)">● Drawdown-Schutz</div>
+    <div class="q">${d.on ? `Du liegst ${fmt(d.dd,1)} R unter deinem Hoch` : 'Drawdown-Schutz ist bereit'}</div>
+    <p class="hint">Ab ${fmt(cfg.ddCut,1)} R unter deinem Hoch halbiert NoTilt dein Risiko. Nach 2 Gewinnern in Folge gibt's wieder volles Risiko.</p>
+    ${d.on ? `<div class="henry">Gerade: <b>${fmt(cfg.risk/2,2)} %</b> statt ${fmt(cfg.risk,2)} % pro Trade · Gewinner in Folge: <b>${d.wins}/2</b></div>` : ''}
+    <p class="hint small">So machen es Prop-Firmen: in schlechten Phasen kleiner traden. Wochen-Limit: ${cfg.weekLimit > 0 ? `${fmt(cfg.weekLimit,1)} R (diese Woche ${sgn(weekR(),1)} R)` : 'aus'}.</p>
+    <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
+
+/* ---------- Tilt-Meter ---------- */
+const TILT_STOPS = ['fomo', 'revenge', 'gier', 'overtrading'];
+function lossStreak(){
+  const since = Date.now() - 24 * 3600e3; let n = 0;
+  for (const t of journalList()){ if (Date.parse(t.date) < since) break; if (t.R < 0) n++; else break; }
+  return n;
+}
+function tiltInfo(){
+  const parts = [], add = (l, p) => { if (p > 0) parts.push([l, Math.round(p)]); };
+  const ls = lossStreak();
+  if (ls) add(ls === 1 ? 'Letzter Trade war ein Verlust' : `${ls} Verluste in Folge`, Math.min(45, ls * 15));
+  const last = journalList()[0];
+  if (last && last.R < 0){ const m = (Date.now() - Date.parse(last.date)) / 60000; if (m >= 0 && m < 60) add(`Letzter Verlust vor ${Math.max(1, Math.round(m))} Min.`, m < 15 ? 20 : 10); }
+  const used = usedToday(); if (used && cfg.maxTrades > 0) add(`${used} von ${cfg.maxTrades} Trades heute`, Math.min(15, 15 * used / cfg.maxTrades));
+  const imp = todayTrades().reduce((a, t) => a + (+t.impulse || 0), 0) + openTrades().reduce((a, t) => a + (+t.impulse || 0), 0);
+  if (imp) add(imp === 1 ? '1 Impuls im Trade' : `${imp} Impulse im Trade`, Math.min(16, imp * 8));
+  const broke = todayTrades().filter(t => t.plan === false).length;
+  if (broke) add(broke === 1 ? 'Heute eine Regel gebrochen' : `Heute ${broke} Regeln gebrochen`, Math.min(30, broke * 15));
+  const emo = S.get('stops', []).filter(s => isToday(s.date) && TILT_STOPS.includes(s.k)).length;
+  if (emo) add(emo === 1 ? 'Checkliste hat heute 1× gestoppt (Gefühl)' : `Checkliste hat heute ${emo}× gestoppt (Gefühl)`, Math.min(20, emo * 10));
+  const r = todayR(); if (cfg.lossLimit > 0 && r <= -cfg.lossLimit / 2 && r > -cfg.lossLimit) add('Halbes Tageslimit verbraucht', 10);
+  if (ddInfo().on) add('Drawdown-Schutz aktiv', 10);
+  const lf = (openTrades().slice(-1)[0] || todayTrades().slice(-1)[0] || {}).feel;
+  if (lf === 'angst') add('Zuletzt nervös getradet', 8);
+  parts.sort((a, b) => b[1] - a[1]);
+  const score = Math.min(100, parts.reduce((a, p) => a + p[1], 0));
+  return {score, parts, level: score >= 65 ? 'hot' : score >= 35 ? 'warn' : 'ok'};
+}
+const TILT_LBL = {ok: 'Ruhig', warn: 'Erhöht', hot: 'Hoch'};
+function tiltTip(t){
+  return t.level === 'hot' ? 'Für heute lieber Schluss – oder 30 Min. Pause.'
+    : t.level === 'warn' ? `Nächster Trade nur mit halbem Risiko (${fmt(cfg.risk/2,2)} %).`
+    : t.score ? 'Leichte Warnsignale – nur über die Checkliste.' : 'Keine Warnsignale. Kopf frei.';
+}
+function tiltCard(){
+  if (!PRO) return '';
+  const t = tiltInfo();
+  return `<button type="button" class="tilt t-${t.level}" onclick="tiltModal()">
+    <span class="tl"><span class="tn">Tilt-Meter</span><span class="tp">${TILT_LBL[t.level]}</span><b class="ts">${t.score}</b></span>
+    <span class="tbar" aria-hidden="true"><i style="width:${Math.max(3, t.score)}%"></i><s style="left:35%"></s><s style="left:65%"></s></span>
+    <span class="tw">${tiltTip(t)}</span></button>`;
+}
+function tiltModal(){
+  const t = tiltInfo();
+  modal(`<div class="tag">● Tilt-Meter</div>
+    <div class="q">${TILT_LBL[t.level]} · ${t.score} von 100</div>
+    <p class="hint">Misst, wie sehr du heute auf Tilt bist – an deinem Verhalten, nicht am Gefühl. Ab 35: halbes Risiko. Ab 65: Schluss für heute.</p>
+    ${t.parts.length ? `<div class="tparts">${t.parts.map(p => `<div><span>${esc(p[0])}</span><b>+${p[1]}</b></div>`).join('')}</div>` : '<p class="hint small">Gerade keine Warnsignale.</p>'}
+    <div class="henry"><b>Empfehlung:</b> ${tiltTip(t)}</div>
+    <div class="row">${t.level === 'hot' ? '<button class="btn ghost" onclick="tiltPause()">30 Min. Pause</button>' : ''}<button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
+function tiltPause(){ S.set('cooldownUntil', Math.max(S.get('cooldownUntil', 0), Date.now() + 30 * 60000)); closeModal(); home(); }
+/* Risiko für den nächsten Trade: halb bei Drawdown-Schutz oder erhöhtem Tilt */
+function riskNow(){
+  if (!PRO) return {risk: cfg.risk, why: ''};
+  const d = ddInfo(); if (d.on) return {risk: cfg.risk / 2, why: 'dd', dd: d.dd};
+  const t = tiltInfo(); if (t.level !== 'ok') return {risk: cfg.risk / 2, why: 'tilt', score: t.score};
+  return {risk: cfg.risk, why: ''};
+}
+function riskWhyHtml(){
+  if (!st.riskWhy || st.risk > cfg.risk / 2 + 1e-9) return '';
+  return `<p class="note">½ Risiko: ${st.riskWhy === 'dd'
+    ? `Drawdown-Schutz – du liegst ${fmt(st.riskDD,1)} R unter deinem Hoch. Volles Risiko nach 2 Gewinnern in Folge.`
+    : `Tilt-Meter erhöht (${st.riskScore}). Kleiner traden, bis der Kopf wieder ruhig ist.`}</p>`;
+}
+
+/* ---------- MAE / MFE ---------- */
+const MAE_OPTS = [0, -0.25, -0.5, -0.75, -1], MFE_OPTS = [0, 0.5, 1, 1.5, 2, 3];
+const rLbl = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v), Math.abs(v) % 0.5 ? 2 : Math.abs(v) % 1 ? 1 : 0);
+const excRow = (id, opts, sel) => chipRow(id, opts.map(v => [String(v), rLbl(v)]), sel == null ? null : String(sel), 'small exc');
+const excVal = id => { const v = chipVal(id); return v === undefined ? null : +v; };
+function excHtml(art, t = {}){
+  if (!PRO) return '';
+  const a = art !== 'sl', b = art !== 'tp';
+  return `<div class="excbox"><div class="lbl3">Wie weit lief der Trade? <small>optional · zeigt dir, ob Stop und Ziel passen</small></div>
+    ${a ? `<div class="f"><label data-term="MAE">Max. gegen dich (R)</label>${excRow('mae', MAE_OPTS, t.mae)}</div>` : ''}
+    ${b ? `<div class="f"><label data-term="MAE">Max. für dich (R)</label>${excRow('mfe', MFE_OPTS, t.mfe)}</div>` : ''}</div>`;
+}
+const hasN = v => typeof v === 'number' && isFinite(v);
+function maeHtml(arr){
+  if (!PRO) return '';
+  const W = arr.filter(t => t.R > 0 && hasN(t.mae)), L = arr.filter(t => t.R < 0 && hasN(t.mfe)), MIN = 5;
+  const head = '<div class="lbl2" data-term="MAE">Stop & Ziel im Test</div>';
+  if (W.length < MIN && L.length < MIN) return `<div class="maebox">${head}<div class="mutedtxt">Tipp beim Schließen an, wie weit der Trade gegen bzw. für dich lief. Ab 5 Gewinnern siehst du, ob dein Stop passt – ab 5 Verlierern, ob sich Break-even lohnt.</div>
+    <div class="mutedtxt small">Bisher: ${W.length}/5 Gewinner · ${L.length}/5 Verlierer</div></div>`;
+  let out = head;
+  if (W.length >= MIN){
+    const cnt = MAE_OPTS.map(v => W.filter(t => Math.abs(t.mae - v) < 0.13 || (v === -1 && t.mae < -0.87)).length), mx = Math.max(1, ...cnt);
+    const share = W.filter(t => t.mae >= -0.5).length / W.length * 100;
+    out += `<div class="maeq">Wie tief liefen deine Gewinner vor dem Ziel ins Minus?</div>
+      <div class="hbars">${MAE_OPTS.map((v, i) => `<div class="hb ${v >= -0.5 ? 'on' : ''}"><em>${cnt[i]}</em><i style="height:${Math.round(cnt[i] / mx * 100)}%"></i><span>${rLbl(v)}</span></div>`).join('')}</div>
+      <div><b>${fmt(share,0)} %</b> deiner Gewinner liefen nie tiefer als −0,5 R.</div>
+      <div class="mutedtxt">${share >= 75 ? 'Dein Stop ist wohl zu weit. Enger heißt: größere Position bei gleichem Risiko. Erst backtesten.'
+        : share <= 40 ? 'Dein Stop passt – deine Gewinner brauchen den Platz.' : 'Dein Stop passt im Großen und Ganzen.'}${W.length < 20 ? ` <span>Erst ${W.length} Gewinner – ab 20 wird es belastbar.</span>` : ''}</div>`;
+  }
+  if (L.length >= MIN){
+    const hit = L.filter(t => t.mfe >= 1), share = hit.length / L.length * 100, saved = hit.reduce((a, t) => a - t.R, 0);
+    out += `<div class="maeq" style="margin-top:12px"><b>${fmt(share,0)} %</b> deiner Verlierer waren vorher mindestens +1 R im Plus.</div>
+      <div class="mutedtxt">${share >= 30 ? `Mit Stop auf Einstieg ab +1 R hättest du grob gespart: <b class="good">${fmt(saved,1)} R</b>`
+        : 'Deine Verlierer sind selten erst im Plus – Break-even bringt dir wenig.'}</div>`;
+  }
+  return `<div class="maebox">${out}</div>`;
+}
+/* ==================================================================
+   Trade-Details: Antippen eines Trades im Journal zeigt alles, was du
+   vor und nach dem Trade eingetragen hast – Bearbeiten ist einen Tipp weiter.
+   ================================================================== */
+const ART_TXT = {tp: 'Ziel erreicht', sl: 'Stop getroffen', manuell: 'Manuell geschlossen', nachgetragen: 'Nachgetragen', import: 'Importiert'};
+const durTxt = ms => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} Min.` : m < 1440 ? `${Math.floor(m / 60)} Std. ${m % 60} Min.` : `${Math.round(m / 1440)} Tage`; };
+const pxFmt = v => fmt(v, Math.abs(v) >= 1000 ? 2 : Math.abs(v) >= 1 ? 4 : 6);
+function priceBar(t){
+  const ok = v => typeof v === 'number' && isFinite(v) && v > 0;
+  if (![t.entry, t.sl, t.tp].every(ok)) return '';
+  const pts = [['sl', t.sl], ['en', t.entry], ['tp', t.tp]]; if (ok(t.exit) && t.exit !== t.tp && t.exit !== t.sl) pts.push(['ex', t.exit]);
+  const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1, pos = v => 4 + 92 * (v - lo) / span;
+  const a = Math.min(t.sl, t.entry), b = Math.max(t.sl, t.entry), c = Math.min(t.tp, t.entry), d = Math.max(t.tp, t.entry);
+  return `<div class="tdbar" aria-hidden="true"><span class="zl" style="left:${pos(a)}%;width:${pos(b) - pos(a)}%"></span><span class="zw" style="left:${pos(c)}%;width:${pos(d) - pos(c)}%"></span>
+    ${pts.map(([k, v]) => `<i class="mk k-${k}" style="left:${pos(v)}%"></i>`).join('')}</div>`;
+}
+function showTrade(id){
+  const t = cache.journal.find(j => j.id === id); if (!t) return;
+  const hasN = v => typeof v === 'number' && isFinite(v);
+  const crv = hasN(t.crv) ? t.crv : (hasN(t.entry) && hasN(t.sl) && hasN(t.tp) && t.entry !== t.sl ? Math.abs(t.tp - t.entry) / Math.abs(t.entry - t.sl) : NaN);
+  const usd = hasN(t.riskUsd) ? t.R * t.riskUsd : NaN;
+  const feel = (FEEL.find(f => f[0] === t.feel) || [])[1], grade = GRADES.find(g => g[0] === t.grade);
+  const kpi = (v, l, cls = '') => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const row = (l, v) => v ? `<div class="irow"><span class="it">${l}</span><span class="ichs">${v}</span></div>` : '';
+  const head = [new Date(t.date).toLocaleString(LOC(), {dateStyle: 'medium', timeStyle: 'short'}), hasN(t.opened) ? 'Dauer ' + durTxt(Date.parse(t.date) - t.opened) : '', esc(t.strat || '')].filter(Boolean);
+  modal(`<div class="tag">● Trade-Details</div>
+    <div class="tdh"><span class="tdc">${esc(t.coin || 'Trade')}</span><span class="dirp ${t.dir === 'short' ? 'sh' : 'lg'}">${t.dir === 'short' ? 'SHORT' : 'LONG'}</span>
+      <span class="tdr ${t.R > 0 ? 'good' : t.R < 0 ? 'bad' : ''}">${sgn(t.R)} R</span></div>
+    <p class="hint small tdmeta">${head.map(h => `<span>${h}</span>`).join(' · ')}</p>
+    ${priceBar(t)}
+    ${hasN(t.entry) ? `<div class="tdgrid">${kpi(pxFmt(t.entry), 'Einstieg')}${hasN(t.sl) ? kpi(pxFmt(t.sl), 'Stop-Loss', 'bad') : ''}${hasN(t.tp) ? kpi(pxFmt(t.tp), 'Ziel', 'good') : ''}${hasN(t.exit) ? kpi(pxFmt(t.exit), 'Ausstieg', 'gold') : ''}</div>` : ''}
+    <div class="tdgrid">${hasN(usd) ? kpi(sgn(usd), 'Ergebnis USDT', usd > 0 ? 'good' : usd < 0 ? 'bad' : '') : ''}${hasN(crv) ? kpi(fmt(crv), 'CRV geplant') : ''}${hasN(t.riskUsd) ? kpi(fmt(t.riskUsd), 'Risiko USDT') : ''}${t.art && ART_TXT[t.art] ? kpi(`<small>${ART_TXT[t.art]}</small>`, 'Ausgang') : ''}</div>
+    <div class="tdrows">
+      ${row('Setup-Note', grade ? `<span class="ich ${t.grade === 'B' ? '' : 'w'}"><b>${grade[0]}</b> ${esc(grade[1])}</span>` : '')}
+      ${row('Gefühl', feel ? `<span class="ich ${t.feel === 'ruhig' ? 'w' : 'l'}">${esc(feel)}</span>` : '')}
+      ${t.art !== 'import' ? row('Impulse', t.impulse ? `<span class="ich l"><b>${t.impulse}×</b> im Trade</span>` : t.checklist ? '<span class="ich w">Keine</span>' : '') : ''}
+      ${row('Checkliste', t.art === 'import' ? '' : t.checklist ? '<span class="ich w">Ja</span>' : '<span class="ich l">Ohne</span>')}
+      ${PRO && (hasN(t.mae) || hasN(t.mfe)) ? row('Verlauf', `${hasN(t.mae) ? `<span class="ich">Max. gegen dich <b>${rLbl(t.mae)} R</b></span>` : ''}${hasN(t.mfe) ? `<span class="ich">Max. für dich <b>${rLbl(t.mfe)} R</b></span>` : ''}`) : ''}
+      ${t.rules ? row('Regeln', RULES.map(([k, l]) => `<span class="ich ${t.rules[k] === false ? 'l no' : 'w ok'}">${l}</span>`).join('')) : ''}
+      ${row('Fehler', (t.err || []).map(e => `<span class="ich l">${esc(MIST_TXT[e] || e)}</span>`).join(''))}
+      ${row('Notiz', t.note ? `<span class="tdnote">${esc(t.note)}</span>` : '')}
+      ${row('Chart', t.link ? `<a class="ich" href="${esc(t.link)}" target="_blank" rel="noopener">Chart öffnen ↗</a>` : '')}
+    </div>
+    ${shotGrid(t)}
+    <div class="row"><button class="btn ghost" onclick="closeModal()">Schließen</button><button class="btn pri" onclick="editTrade('${t.id}')">Bearbeiten</button></div>`);
+  loadShotThumbs();
+}
 /* ------------------------------------------------------------------
    Inhalte
 ------------------------------------------------------------------ */
@@ -1680,41 +2178,44 @@ const QUOTES = [
   '„Wer Trading wie ein Business führt, misst seine Zahlen.“'
 ];
 const STOPS = {
-  overtrading:{t:'Langeweile ist kein Setup', x:'Du willst traden, weil du etwas tun willst – nicht, weil dein System ein Setup zeigt.',
-    h:'Ein erzwungenes, mittelmäßiges Setup ist meistens der teuerste Trade des Tages.'},
-  revenge:{t:'Revenge-Trading-Gefahr', x:'Nach Verlusten gehen Trader nachweislich mehr Risiko ein. Genau jetzt ist der schlechteste Moment für den nächsten Trade.',
-    h:'Erst Abstand gewinnen: Laptop zu, kurz raus, dann mit klarem Kopf neu bewerten.', cool:true},
-  fomo:{t:'FOMO erkannt', x:'Die Angst, etwas zu verpassen, macht dich fast immer zum Käufer kurz vor der Umkehr.',
-    h:'FOMO ist ein alter Herden-Instinkt. Am Finanzmarkt macht er dich zum Käufer am Hoch.'},
-  gier:{t:'Gier am Steuer', x:'„Der wird sicher groß“ führt zu zu großen Positionen und Setups, die dein System nie traden würde.',
-    h:'Gier fühlt sich im Moment wie ein guter Instinkt an. Deshalb entscheidet die Checkliste, nicht das Gefühl.'},
-  neutral:{t:'Bias heute: neutral', x:'Dein Tages-Check sagt: keine klare Richtung. Heute kein Trade – und das ist völlig in Ordnung.',
-    h:'Keine klare Richtung ist ein vollkommen gültiges Ergebnis. Abwarten ist auch eine Position.'},
-  gegenbias:{t:'Gegen deinen Bias', x:'Du willst gegen die Richtung deines Tages-Checks traden.',
-    h:'Der Bias entscheidet, in welche Richtung du suchst. Hat sich der Markt klar gedreht, mach den Tages-Check neu – aber nicht mitten im Impuls.'},
-  setup:{t:'Setup unvollständig', x:'Mindestens eine Bedingung deines Systems ist nicht erfüllt. Kein Trade.',
-    h:'Nicht alles abgehakt heißt: kein Trade. Alarm setzen und warten.'},
-  crv:{t:'Chance-Risiko zu schlecht', x:'Dein Ziel ist im Verhältnis zum Stop zu nah.', h:'Nur Trades mit klarem Mindest-CRV.'},
-  liq:{t:'Liquidation vor dem Stop', x:'Mit diesem Hebel wirst du liquidiert, bevor dein Stop überhaupt greift.', h:'Weniger Hebel oder engerer Stop.'},
-  limit:{t:'Trade-Limit für heute erreicht', x:'Du hast heute so viele Trades gemacht, wie du dir vorgenommen hast.',
-    h:'Mehr Trades, als dein System hergibt, heißt: Du tradest Gefühle, nicht Setups.'},
-  verlustlimit:{t:'Verlust-Limit für heute erreicht', x:'Du hast heute dein maximales Minus erreicht. Für heute ist Schluss.',
-    h:'Nach Verlusten steigt die Risikobereitschaft – genau dann schützt dich eine harte Grenze.'},
-  news:{t:'News-Fenster', x:'', h:'Bei News: erst 30–60 Minuten abwarten und beobachten.'},
-  usopen:{t:'US-Börsenstart läuft', x:'', h:'Die ersten Minuten nach dem Börsenstart sind oft hektisch und täuschen. Erst beobachten, dann handeln.'}
+  overtrading:{t:'Langeweile ist kein Setup', x:'Kein Setup, kein Trade. Charts zu und später wieder reinschauen.',
+    w:'Du willst traden, weil du etwas tun willst – nicht, weil dein System etwas zeigt. Ein erzwungenes Setup ist meistens der teuerste Trade des Tages.'},
+  revenge:{t:'Revenge-Trade-Gefahr', x:'Nach einem Verlust willst du\'s zurückholen. Genau deshalb: Pause.',
+    w:'Nach Verlusten gehen Trader nachweislich mehr Risiko ein. Mit Abstand und klarem Kopf entscheidest du besser.', cool:true},
+  fomo:{t:'FOMO', x:'Der Zug ist abgefahren. Alarm an deiner Zone setzen und warten.',
+    w:'Die Angst, etwas zu verpassen, macht dich fast immer zum Käufer kurz vor der Umkehr.'},
+  gier:{t:'Gier am Steuer', x:'„Der wird sicher groß“ ist kein Setup. Die Checkliste entscheidet.',
+    w:'Gier fühlt sich an wie ein guter Instinkt. Sie führt aber zu zu großen Positionen und zu Setups, die dein System nie traden würde.'},
+  neutral:{t:'Heute keine klare Richtung', x:'Bias neutral heißt: heute kein Trade. Völlig okay.',
+    w:'Abwarten ist auch eine Position. Gute Trader traden nur, wenn der Markt klar ist.'},
+  gegenbias:{t:'Gegen deinen Bias', x:'Du willst gegen deine Tagesrichtung traden. Lass es – oder mach den Tages-Check neu.',
+    w:'Der Bias legt fest, in welche Richtung du suchst. Hat sich der Markt klar gedreht, mach den Check neu – aber nicht mitten im Impuls.'},
+  setup:{t:'Setup unvollständig', x:'Nicht alles abgehakt heißt: kein Trade. Alarm setzen und warten.',
+    w:'Jede Bedingung ist Teil deines getesteten Systems. Fehlt eine, ist es ein anderer Trade – mit unbekannter Trefferquote.'},
+  crv:{t:'Chance-Risiko zu schlecht', x:'Dein Ziel ist zu nah für deinen Stop. Kein Trade.',
+    w:'Mit kleinem CRV musst du fast jeden Trade gewinnen. Mit CRV 2 reicht schon jeder dritte Gewinner, um nicht zu verlieren.'},
+  liq:{t:'Liquidation vor dem Stop', x:'Mit diesem Hebel fliegst du raus, bevor dein Stop greift. Weniger Hebel oder engerer Stop.',
+    w:'Ist dein Geld in der Position aufgebraucht, schließt die Börse sie zwangsweise – dann hilft dir dein Stop nicht mehr.'},
+  limit:{t:'Trade-Limit erreicht', x:'Genug für heute. Morgen geht\'s weiter.',
+    w:'Mehr Trades, als dein System hergibt, heißt: Du tradest Gefühle, nicht Setups.'},
+  verlustlimit:{t:'Verlust-Limit erreicht', x:'Für heute ist Schluss. Morgen ist ein neuer Tag.',
+    w:'Nach Verlusten steigt die Lust auf Risiko. Genau dann schützt dich eine harte Grenze.'},
+  wochenlimit:{t:'Wochen-Limit erreicht', x:'', w:'Profis hören in schlechten Phasen auf, bevor aus einer schlechten Woche ein schlechter Monat wird.'},
+  news:{t:'News-Fenster', x:'', w:'Rund um News springt der Kurs oft wild hin und her. Erst beobachten, dann handeln.'},
+  usopen:{t:'US-Börsenstart läuft', x:'', w:'Die ersten Minuten nach dem Börsenstart sind hektisch und täuschen oft. Erst beobachten, dann handeln.'}
 };
 const TEMPT = {
-  stop:{t:'Stop weiter weg schieben?', x:'Das ist Verlustaversion: Du hältst Verlierer zu lange, in der Hoffnung „der dreht schon“.', h:'Du hast einen Plan. Jag deine Verluste nicht weiter ins Minus.'},
-  frueh:{t:'Gewinne früher mitnehmen?', x:'Die Angst, den Buchgewinn zu verlieren, lässt dich Gewinner zu früh verkaufen. Über hunderte Trades kostet genau das deine Edge.', h:'Du hast ein Ziel – halte es.'},
-  mehr:{t:'Position vergrößern?', x:'Das ist Gier. Dein Risiko war mit dem Plan festgelegt.', h:'Der Plan entscheidet, nicht das Gefühl.'},
-  nervoes:{t:'Nervös am Chart?', x:'Handy weg oder Laptop zu. Preisalarme bei Ziel und Stop setzen. Kurzer Spaziergang.', h:'Deine Orders sind gesetzt – das reicht.'}
+  stop:{t:'Stop weiter weg schieben?', x:'Nein. Der Stop bleibt, wo er ist.', w:'Das ist Verlustaversion: Du hältst Verlierer zu lange, weil du hoffst „der dreht schon“. So wird aus einem kleinen Verlust ein großer.'},
+  frueh:{t:'Früher raus?', x:'Zu früh raus heißt: Gewinn verschenkt. Dein Ziel steht. Halten.', w:'Die Angst, Buchgewinn zu verlieren, lässt dich Gewinner zu früh schließen. Über hunderte Trades kostet genau das deine Edge.'},
+  mehr:{t:'Position vergrößern?', x:'Das ist Gier. Dein Risiko stand schon vorher fest.', w:'Nachlegen mitten im Trade erhöht dein Risiko genau dann, wenn du am wenigsten objektiv bist.'},
+  nervoes:{t:'Nervös am Chart?', x:'Deine Orders stehen – das reicht. Alarm setzen, Handy weg.', w:'Jeder Blick auf den Chart ist eine Einladung, einzugreifen. Mit Preisalarmen bei Ziel und Stop musst du nicht mehr hinschauen.'}
 };
 const REMIND = [
   'Du musst nichts tun. Stop und Ziel arbeiten für dich.',
-  'Ein Verlust schmerzt doppelt so stark wie ein gleich großer Gewinn – deshalb will dein Kopf gleich Dummes tun. Lass ihn reden.',
-  'Unrealisierter Gewinn ist nicht dein Geld. Halte dich an dein Ziel.',
-  'Starrst du seit Minuten auf den Chart? Alarm setzen, Handy weg.',
-  'Der Trade ist im Minus? Normal. Der Stop bleibt, wo er ist.'
+  'Ein Verlust tut doppelt so weh wie ein gleich großer Gewinn. Dein Kopf übertreibt – lass ihn reden.',
+  'Buchgewinn ist nicht dein Geld. Ziel halten.',
+  'Seit Minuten am Chart? Alarm setzen, Handy weg.',
+  'Im Minus? Normal. Der Stop bleibt, wo er ist.'
 ];
 const FEEL = [['ruhig','Ruhig & klar'],['fomo','Ungeduldig – will nichts verpassen'],['frust','Frust nach einem Verlust'],
   ['gier','Euphorisch – der wird groß'],['lw','Langeweile – will einfach traden'],['angst','Nervös / ängstlich']];
@@ -1845,7 +2346,7 @@ function restoreNav(){
   if (needsOnboarding()) return false;
   if (n.v === 'flow' && n.st && age < 10*60000){
     const b = biasToday();
-    if (!b || b.b === 'neutral' || cooldownLeft() > 0 || usedToday() >= cfg.maxTrades || todayR() <= -cfg.lossLimit) return false;
+    if (!b || b.b === 'neutral' || cooldownLeft() > 0 || usedToday() >= cfg.maxTrades || todayR() <= -cfg.lossLimit || weekLocked()) return false;
     st = n.st; if (st.dir !== b.b){ st.dir = b.b; st.setupOk = false; st.ticks = null; }
     fi = Math.max(0, Math.min(+n.fi || 0, FLOW.length - 1)); step(); return true;
   }
@@ -1866,7 +2367,7 @@ function home(){
   curView = 'home'; progress(null);
   if (needsOnboarding()) return onboarding();
   const n = usedToday(), open = openTrades(), cd = cooldownLeft(), r = todayR(), b = biasToday();
-  const locked = cd>0 || n>=cfg.maxTrades || r <= -cfg.lossLimit;
+  const wk = weekLocked(), locked = cd>0 || n>=cfg.maxTrades || r <= -cfg.lossLimit || wk, dd = ddInfo(), wr = weekR();
   const biasChip = !b ? `<button class="chip warn" onclick="dayCheck()">Tages-Check <b>offen</b></button>`
     : `<button class="chip" onclick="dayCheck()">Bias <b style="color:${b.b==='long'?'var(--green)':b.b==='short'?'var(--red)':'var(--mut)'}">${b.b==='long'?'Long':b.b==='short'?'Short':'Neutral'}</b> ✎</button>`;
   const openRows = open.length ? `<div class="openlist">${open.map(a => `<button class="openrow" onclick="inTrade('${a.id}')"><span class="livedot"></span><b>${esc(a.coin||'Trade')} ${a.dir==='long'?'LONG':'SHORT'}</b><span>offen · ${sinceTxt(a)}</span><em>Öffnen →</em></button>`).join('')}</div>` : '';
@@ -1880,14 +2381,17 @@ function home(){
     </div>
     <div class="stats">
       ${biasChip}
-      <span class="chip ${n>=cfg.maxTrades?'warn':''}">Trades <b>${n}/${cfg.maxTrades}</b></span>
+      ${n >= cfg.maxTrades ? `<span class="chip warn">Trade-Limit erreicht</span>` : cfg.maxTrades > 1 && n === cfg.maxTrades - 1 ? `<span class="chip gold">Noch 1 Trade heute</span>` : `<span class="chip">Trades heute <b>${n}</b></span>`}
       <span class="chip ${r<0?'warn':''}" data-term="R">Heute <b>${sgn(r,1)} R</b></span>
       ${simple() ? '' : `<span class="chip">Session <b>${session()}</b></span>`}
       ${b && b.newsTime ? `<span class="chip">News <b>${esc(b.newsTime)}</b></span>` : ''}
+      ${dd.on ? `<button class="chip warn" onclick="ddModal()">Schutz <b>½ Risiko</b></button>` : ''}
+      ${PRO && cfg.weekLimit>0 && wr<0 ? `<button class="chip ${wk?'warn':''}" onclick="ddModal()">Woche <b>${sgn(wr,1)} / −${fmt(cfg.weekLimit,0)} R</b></button>` : ''}
       ${cd>0?`<span class="chip warn">Pause <b id="cdh">${mmss(cd)}</b></span>`:''}
       ${(() => { const sk = streakInfo(); return sk.cur || sk.best ? `<button class="chip streak ${sk.todayDone?'done':''}" onclick="streakInfoModal()">Serie <b>${sk.cur}</b></button>` : ''; })()}
     </div>
     </div><div class="hcol hr">
+    ${tiltCard()}
     ${reviewDue() ? `<button class="reviewcta" onclick="weeklyReview()"><b>Wochenrückblick</b><span>2 Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.</span></button>` : ''}
     ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
@@ -1906,27 +2410,35 @@ function start(){
   if (cooldownLeft()>0) return cooldownView();
   if (usedToday()>=cfg.maxTrades) return stopView('limit');
   if (todayR() <= -cfg.lossLimit) return stopView('verlustlimit');
+  if (weekLocked()) return stopView('wochenlimit', `Diese Woche ${sgn(weekR(),1)} R – dein Limit ist −${fmt(cfg.weekLimit,1)} R. Ab Montag geht's weiter.`);
   const b = biasToday();
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
-  const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. Kein neuer Trade ${cfg.newsWin} Minuten davor und danach.`);
-  if (usOpenBlock()) return stopView('usopen', `Die US-Börse hat um ${usOpenLocal()} Uhr geöffnet. In den ersten ${cfg.usOpenBlock} Minuten keine neuen Trades.`);
+  const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
+  if (usOpenBlock()) return stopView('usopen', `US-Börse seit ${usOpenLocal()} Uhr offen. Die ersten ${cfg.usOpenBlock} Min.: kein Trade.`);
+  const ti = tiltInfo();
+  if (PRO && ti.level === 'hot' && !start._tilt) return modal(`<div class="tag" style="color:var(--red)">● Tilt-Meter: hoch (${ti.score})</div>
+      <div class="q">Heute lieber Schluss?</div>
+      <p class="hint">Deine letzten Trades zeigen klare Tilt-Signale:</p>
+      <div class="tparts">${ti.parts.slice(0,3).map(p => `<div><span>${esc(p[0])}</span><b>+${p[1]}</b></div>`).join('')}</div>
+      <p class="hint">An solchen Tagen hören Profis auf – der Markt ist morgen auch noch da.</p>
+      <div class="row"><button class="btn pri" onclick="tiltPause()">30 Min. Pause</button><button class="btn ghost" onclick="closeModal(); start._tilt = true; start(); start._tilt = false;">Trotzdem, mit ½ Risiko</button></div>`);
   const o = openTrades();
   if (o.length && !start._ok){
     const rTot = o.reduce((x, a) => x + (+a.risk || cfg.risk), 0);
     return modal(`<div class="tag" style="color:var(--gold)">⚠ Schon ${o.length === 1 ? 'ein Trade' : o.length + ' Trades'} offen</div>
       <div class="q">Noch einen dazu?</div>
-      <p class="hint">Gerade riskierst du ${fmt(rTot,2)} %. Mit einem weiteren Trade sind es ca. ${fmt(rTot + cfg.risk,2)} % gleichzeitig. Laufen die Trades in dieselbe Richtung, verlieren sie oft auch zusammen.</p>
-      <div class="row"><button class="btn ghost" onclick="closeModal()">Lieber nicht</button><button class="btn pri" onclick="closeModal(); start._ok = true; start(); start._ok = false;">Zur Checkliste</button></div>`);
+      <p class="hint">Du riskierst gerade ${fmt(rTot,2)} %, mit noch einem Trade ca. ${fmt(rTot + cfg.risk,2)} %. Gleiche Richtung heißt oft: Sie verlieren zusammen.</p>
+      <div class="row"><button class="btn ghost" onclick="closeModal()">Lieber nicht</button><button class="btn pri" onclick="closeModal(); start._ok = true; start._tilt = true; start(); start._ok = false; start._tilt = false;">Zur Checkliste</button></div>`);
   }
-  const ls = S.get('lastStrat', ''); st = {dir: b.b, risk: cfg.risk, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
+  const ls = S.get('lastStrat', ''), rk = riskNow(); st = {dir: b.b, risk: rk.risk, riskWhy: rk.why, riskDD: rk.dd, riskScore: rk.score, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
 function next(){ fi++; step(); }
 /* Einen Schritt zurück – Eingaben bleiben erhalten. Aus dem ersten Schritt geht es zurück zum Start. */
 function back(){ if (fi <= 0) return home(); fi--; step(); }
 const backBtn = (fn = 'back()') => `<button class="backbtn" type="button" onclick="${fn}" aria-label="Zurück">← Zurück</button>`;
-function angstBack(){ st.risk = cfg.risk; step(); }
+function angstBack(){ st.risk = riskNow().risk; step(); }
 
 /* ------------------------------------------------------------------
    Tages-Check (einmal pro Tag) – Routine vor dem Handelstag
@@ -2028,7 +2540,7 @@ function warnAngst(){
   render(`<div class="card">
     ${backBtn('angstBack()')}<div class="tag" style="color:var(--gold)">▲ Achtung</div>
     <div class="q">Angst im Spiel</div>
-    <p class="hint">Angst lässt dich zu spät rein, zu früh raus oder gar nicht handeln. Meist ist das Risiko zu groß, damit ein Verlust dich kaltlässt.</p>
+    <p class="hint">Nervös heißt meistens: Risiko zu groß. Mit halbem Risiko ist ein Verlust egal.</p>
     <div class="henry">Für diesen Trade halbiere ich dein Risiko auf <b>${fmt(st.risk,2)} %</b>.</div>
     <div class="row"><button class="btn ghost" onclick="home()">Lieber nicht</button><button class="btn pri" onclick="next()">Mit halbem Risiko weiter</button></div>
   </div>`, 'warnv');
@@ -2078,6 +2590,7 @@ function plan(){
     </div>
     ${(() => { const s = stratBy(st.strat); return s && (s.stop || s.target) ? `<p class="hint small rulehint">${s.stop ? `Stop: <b>${esc(s.stop)}</b>` : ''}${s.stop && s.target ? ' · ' : ''}${s.target ? `Ziel: <b>${esc(s.target)}</b>` : ''}</p>` : ''; })()}
     <button class="mini" onclick="$('#accf').hidden=!$('#accf').hidden">Konto ${fmt(cfg.konto,0)} USDT · Risiko ${fmt(st.risk,2)} % · Hebel ${fmt(cfg.hebel,0)}x · ändern</button>
+    ${riskWhyHtml()}
     <div class="grid3" id="accf" hidden>
       <div class="f"><label for="konto">Konto (USDT)</label><input id="konto" inputmode="decimal" value="${cfg.konto}"></div>
       <div class="f"><label for="risk">Risiko (%)</label><input id="risk" inputmode="decimal" value="${st.risk}"></div>
@@ -2197,7 +2710,7 @@ function tempt(k){
   setOpen(openTrades().map(x => x.id === curOpen ? Object.assign({}, x, {impulse: (x.impulse||0) + 1}) : x));
   modal(`<div class="tag" style="color:var(--gold)">⚠ Impuls erkannt</div>
     <div class="q">${esc(t.t)}</div><p class="hint">${esc(t.x)}</p>
-    <div class="henry"><b>Merke:</b> ${esc(t.h)}</div>
+    ${t.w ? `<details class="why"><summary>Warum?</summary><p>${esc(t.w)}</p></details>` : ''}
     <div class="row"><button class="btn pri" onclick="closeModal()">Ich bleibe bei meinem Plan</button></div>`);
 }
 function modal(h){ $('#modalc').innerHTML = h; $('#modal').classList.add('on'); }
@@ -2227,6 +2740,7 @@ function endTrade(art, id){
     <div class="f" id="exitf" ${art==='manuell'?'':'hidden'}><label for="exit">Ausstiegskurs</label>
       <div class="coinrow"><input id="exit" inputmode="decimal" autocomplete="off" placeholder="z. B. ${fmt(a.entry,4)}"><button type="button" class="mini" id="be">Break-even</button></div></div>
     ${art!=='manuell' ? '<button type="button" class="linkbtn" id="adj">Anderer Ausstiegskurs? Anpassen</button>' : ''}
+    ${excHtml(art)}
     <div class="lbl3">Hast du dich an deinen Plan gehalten?</div>
     <div class="row keptrow"><button class="btn green" id="k_yes">✓ Ja, alles nach Plan</button><button class="btn ghost" id="k_no">✗ Nein</button></div>
     <div id="broke" hidden>
@@ -2241,7 +2755,7 @@ function endTrade(art, id){
     <div class="row" id="saverow" hidden><button class="btn pri" onclick="saveTrade('${art}')">Speichern</button></div>
   </div>`);
   later(()=>{
-    bindChips('rules', null, true); bindChips('mist', null, true);
+    bindChips('rules', null, true); bindChips('mist', null, true); bindChips('mae'); bindChips('mfe');
     const upd = () => { const R = st.end.R, box = $('#resbox'); if (!box) return;
       box.className = 'resbox ' + (isFinite(R) ? (R > 0 ? 'good' : R < 0 ? 'bad' : '') : '');
       box.innerHTML = isFinite(R) ? `<b>${sgn(R)} R</b><span>${isFinite(a.riskAmt) ? '≈ ' + sgn(R * a.riskAmt) + ' USDT' : ''}</span>` : '<span>Ausstiegskurs eingeben – die App rechnet das Ergebnis aus.</span>'; };
@@ -2266,7 +2780,8 @@ function saveTrade(art){
   const said = st.end ? st.end.kept : null, exitPx = st.end && isFinite(st.end.exit) ? st.end.exit : null;
   const t = {date:new Date().toISOString(), coin:a.coin||'', strat:a.strat||'', grade:a.grade||'', dir:a.dir, entry:a.entry, sl:a.sl, tp:a.tp, R,
     art, exit: exitPx, rules, plan: said === false ? false : Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null, riskUsd: isFinite(a.riskAmt) ? +(+a.riskAmt).toFixed(2) : null,
-    note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true};
+    note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true,
+    mae: art==='sl' ? -1 : excVal('mae'), mfe: art==='tp' ? R : excVal('mfe'), crv: isFinite(a.crv) ? +(+a.crv).toFixed(2) : null, opened: a.start || null};
   addTrade(t); attachShots(t.id, files);
   setOpen(openTrades().filter(x => x.id !== a.id)); curOpen = null;
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
@@ -2281,7 +2796,7 @@ function cooldownView(R, kept){
   render(`<div class="card" style="text-align:center">
     <div class="tag" style="color:var(--blue)">◎ Pause</div>
     <div class="q">${loss===true?'Handy weg. Kurz raus.':loss===false?'Gespeichert. Kein Übermut-Trade.':'Du bist noch in der Pause.'}</div>
-    <p class="hint">${loss===true?'Nach Verlusten steigt die Risikobereitschaft messbar. Die Pause schützt dich davor.':'Auch nach Gewinnen: Der nächste Trade kommt nur über die Checkliste.'}</p>
+    <p class="hint">${loss===true?'Nach einem Verlust willst du\'s zurückholen. Genau deshalb: Pause.':'Auch nach Gewinnen: nächster Trade nur über die Checkliste.'}</p>
     ${kept===true ? '<p class="keptmsg">✓ Plan eingehalten – das zählt, nicht das Ergebnis.</p>' : ''}
     <div class="timer" id="cdt" style="color:var(--blue)">${mmss(cooldownLeft())}</div>
     <div class="row"><button class="btn ghost" style="flex:1" onclick="home()">Start</button><button class="btn ghost" style="flex:1" onclick="journal()">Journal</button></div>
@@ -2308,8 +2823,8 @@ function stopView(k, text){
     ${canBack ? backBtn('ret()') : ''}<svg class="xicon" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 18 L46 46"/><path d="M46 18 L18 46" style="animation-delay:.35s"/></svg>
     <div class="tag">■ Kein Trade</div>
     <div class="q">${esc(s.t)}</div>
-    <p class="hint">${esc(text || s.x)}</p>
-    <div class="henry"><b>Merke:</b> ${esc(s.h)}</div>
+    ${text || s.x ? `<p class="hint">${esc(text || s.x)}</p>` : ''}
+    ${s.w ? `<details class="why"><summary>Warum?</summary><p>${esc(s.w)}</p></details>` : ''}
     ${s.cool?`<p class="hint" style="margin-top:14px">${cfg.cooldownLoss} Minuten Pause gestartet.</p>`:''}
     <div class="row"><button class="btn pri" onclick="go('home')">Verstanden</button></div>
     ${k==='neutral'||k==='gegenbias' ? '<div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="dayCheck(false, true)">Tages-Check neu machen</button></div>' : ''}
@@ -2330,26 +2845,28 @@ function kpis(arr){
   return {n, win: n? wins.length/n*100 : NaN, exp: n? sum/n : NaN, sum, pf: gl>0 ? gp/gl : (gp>0 ? Infinity : NaN),
     rule: (() => { const r = arr.filter(x => typeof x.plan === 'boolean'); return r.length ? r.filter(x => x.plan).length / r.length * 100 : NaN; })()};
 }
+/* Erkenntnisse: pro Thema eine Zeile, Werte als Kästchen – der beste grün, alles im Minus rot */
 function insights(arr){
   const out = [], avg = a => a.length ? a.reduce((s,x)=>s+x.R,0)/a.length : NaN, MIN = 3;
-  const kept = arr.filter(x=>x.plan===true), broke = arr.filter(x=>x.plan===false);
-  if (kept.length>=MIN && broke.length>=MIN) out.push(`Plan gehalten: Ø <b>${sgn(avg(kept))} R</b> · Plan gebrochen: Ø <b>${sgn(avg(broke))} R</b>`);
+  const chips = list => { const vs = list.map(c => c.v).sort((a,b) => b-a), best = vs[0];
+    return list.map(c => `<span class="ich ${c.v < 0 ? 'l' : !c.nw && list.length > 1 && c.v === best && best - vs[1] >= 0.05 ? 'w' : ''}">${c.l} <b>${sgn(c.v)} R</b>${c.n ? `<i>${c.n}×</i>` : ''}</span>`).join(''); };
+  const row = (t, list) => out.push(`<div class="irow"><span class="it">${t}</span><span class="ichs">${chips(list)}</span></div>`);
+  /* zweite Gruppe = das Verhalten, das wir nicht wollen: wird nie grün, auch wenn es zufällig besser lief */
+  const pair = (t, a, la, b, lb) => { if (a.length>=MIN && b.length>=MIN) row(t, [{l:la, v:avg(a)}, {l:lb, v:avg(b), nw:true}]); };
+  const mc = mistakeCosts(arr).filter(m => m.cost > 0);
+  if (mc.length) out.push(`<div class="irow"><span class="it">Teuerster Fehler</span><span class="ichs"><span class="ich l">${esc(mc[0].l)} <b>≈ −${fmt(mc[0].cost,1)} R</b><i>${mc[0].n}×</i></span>${mc[1] ? `<span class="ich">${esc(mc[1].l)} <b>≈ −${fmt(mc[1].cost,1)} R</b></span>` : ''}</span></div>`);
+  pair('Plan', arr.filter(x=>x.plan===true), 'Gehalten', arr.filter(x=>x.plan===false), 'Gebrochen');
   const g = {}; arr.forEach(x => { if (x.grade) (g[x.grade] = g[x.grade] || []).push(x); });
   const gs = ['S','A','B'].filter(k => (g[k]||[]).length>=MIN);
-  if (gs.length>=2) out.push('Nach Setup-Note: ' + gs.map(k=>`${k} <b>${sgn(avg(g[k]))} R</b> (${g[k].length})`).join(' · '));
-  const calm = arr.filter(x=>x.feel==='ruhig'), nerv = arr.filter(x=>x.feel==='angst');
-  if (calm.length>=MIN && nerv.length>=MIN) out.push(`Ruhig getradet: Ø <b>${sgn(avg(calm))} R</b> · Nervös: Ø <b>${sgn(avg(nerv))} R</b>`);
-  const withC = arr.filter(x=>x.checklist), noC = arr.filter(x=>!x.checklist);
-  if (withC.length>=MIN && noC.length>=MIN) out.push(`Mit Checkliste: Ø <b>${sgn(avg(withC))} R</b> · Ohne: Ø <b>${sgn(avg(noC))} R</b>`);
-  const imp = arr.filter(x=>x.impulse>0), noImp = arr.filter(x=>!x.impulse);
-  if (imp.length>=MIN && noImp.length>=MIN) out.push(`Trades mit Impulsen: Ø <b>${sgn(avg(imp))} R</b> · ohne: Ø <b>${sgn(avg(noImp))} R</b>`);
+  if (gs.length>=2) row('Setup-Note', gs.map(k => ({l:k, v:avg(g[k]), n:g[k].length})));
+  pair('Gefühl', arr.filter(x=>x.feel==='ruhig'), 'Ruhig', arr.filter(x=>x.feel==='angst'), 'Nervös');
+  pair('Checkliste', arr.filter(x=>x.checklist), 'Mit', arr.filter(x=>!x.checklist), 'Ohne');
+  pair('Impulse', arr.filter(x=>!x.impulse), 'Ohne', arr.filter(x=>x.impulse>0), 'Mit');
   const bs = {}; arr.forEach(x => { if (x.strat) (bs[x.strat] = bs[x.strat] || []).push(x); });
   const sk = Object.keys(bs).filter(k => bs[k].length >= MIN).sort((a,b) => avg(bs[b]) - avg(bs[a]));
-  if (sk.length >= 2) out.push('Nach Strategie: ' + sk.map(k => `${esc(k)} <b>${sgn(avg(bs[k]))} R</b> (${bs[k].length})`).join(' · '));
+  if (sk.length >= 2) row('Strategie', sk.map(k => ({l:esc(k), v:avg(bs[k]), n:bs[k].length})));
   const brokenRule = RULES.map(([k,l]) => [l, arr.filter(x => x.rules && x.rules[k]===false).length]).sort((a,b)=>b[1]-a[1])[0];
-  if (brokenRule && brokenRule[1]>=2) out.push(`Am häufigsten gebrochen: <b>${brokenRule[0]}</b> (${brokenRule[1]}×)`);
-  const mc = mistakeCosts(arr).filter(m => m.cost > 0);
-  if (mc.length) out.unshift(`Teuerster Fehler: <b>${esc(mc[0].l)}</b> – ${mc[0].n}× · kostet dich ca. <b class="bad">${fmt(mc[0].cost,1)} R</b>` + (mc[1] ? ` · danach <span>${esc(mc[1].l)}</span> (${fmt(mc[1].cost,1)} R)` : ''));
+  if (brokenRule && brokenRule[1]>=2) out.push(`<div class="irow"><span class="it">Meist gebrochen</span><span class="ichs"><span class="ich l">${brokenRule[0]} <b>${brokenRule[1]}×</b></span></span></div>`);
   return out;
 }
 function journal(){
@@ -2371,20 +2888,20 @@ function journal(){
       kPf = `<div class="kpi"><div class="v">${isFinite(k.pf)?fmt(k.pf):k.pf===Infinity?'∞':'–'}</div><div class="l" data-term="PF">Profit-Faktor</div></div>`,
       kNet = `<div class="kpi ${k.sum>0?'good':k.sum<0?'bad':''}"><div class="v">${k.n?sgn(k.sum,1):'–'}</div><div class="l" data-term="NetR">Netto R</div></div>`,
       kRule = `<div class="kpi"><div class="v">${k.n?fmt(k.rule,0)+' %':'–'}</div><div class="l" data-term="Regeltreue">Regeltreue</div></div>`;
-    const deep = `<div class="jdeep">${edgeHtml(arr)}
-      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.map(i=>`<div>${i}</div>`).join('') : '<div class="mutedtxt">Ab ein paar Trades pro Gruppe zeigt dir die App hier, was bei dir funktioniert – z. B. Plan gehalten vs. gebrochen, S- vs. B-Setups, ruhig vs. nervös.</div>'}</div></div>`;
+    const deep = `<div class="jdeep">${edgeHtml(arr)}${maeHtml(arr)}
+      <div class="ins"><div class="lbl2">Erkenntnisse</div>${ins.length ? ins.join('') : '<div class="mutedtxt">Nach ein paar Trades siehst du hier, was bei dir funktioniert – und was dich Geld kostet.</div>'}</div></div>`;
     body = (sm ? `<div class="jstats three">${kTrades}${kRule}${kNet}</div>` : `<div class="jstats">${kTrades}${kWin}${kExp}${kPf}${kNet}${kRule}</div>`) + `
       <div class="eqwrap"><canvas id="eq" height="150" aria-label="Kapitalkurve in R"></canvas></div>
       ${sm ? `<details class="more"><summary>Mehr Kennzahlen und Auswertungen</summary><div class="jstats">${kWin}${kExp}${kPf}</div>${deep}</details>` : deep}
       <p class="hint small">Von der Checkliste verhinderte Trades: <b>${stops.length}</b></p>
       <button class="reviewcta small" onclick="weeklyReview()"><b>Wochenrückblick</b><span>Woche auswerten und ein Ziel festlegen</span></button>`;
   } else {
-    body = `<div class="jlist">${arr.length ? arr.map(x=>`<button class="jitem" onclick="editTrade('${x.id}')">
+    body = `<div class="jlist">${arr.length ? arr.map(x=>`<button class="jitem" onclick="showTrade('${x.id}')">
       <span class="d" style="color:${x.dir==='long'?'var(--green)':'var(--red)'}">${x.dir==='long'?'▲':'▼'}</span>
       <div class="m"><div><b>${esc(x.coin||'–')}</b> · ${esc(x.strat||'–')}${x.grade?` · ${esc(x.grade)}`:''}${x.art==='import'?' · <span class="mutedtxt">importiert</span>':x.checklist?'':' · <span class="warnc">ohne Checkliste</span>'}${x.plan===false?' · <span class="warnc">Regel gebrochen</span>':''}${x.err&&x.err.length?' · <span class="warnc">'+x.err.map(e=>esc(MIST_TXT[e]||e)).join(', ')+'</span>':''}${x.shots&&x.shots.length?' · ▣':''}</div>
       <div class="n">${new Date(x.date).toLocaleString(LOC(),{dateStyle:'short',timeStyle:'short'})}${x.note?' · '+esc(x.note):''}</div></div>
       <span class="r" style="color:${x.R>0?'var(--green)':x.R<0?'var(--red)':'var(--mut)'}">${sgn(x.R)} R</span></button>`).join('')
-      : '<div class="empty">Keine Trades in diesem Zeitraum. Trades aus der Checkliste landen hier automatisch – andere kannst du nachtragen.</div>'}</div>`;
+      : '<div class="empty">Noch keine Trades in diesem Zeitraum. Trades aus der Checkliste landen automatisch hier.</div>'}</div>`;
   }
   render(`<div class="card">${head}${body}
     <div class="row jrow"><button class="btn ghost" onclick="addManual()">+ Trade nachtragen</button><button class="btn ghost" onclick="importOpen()">⇩ Von Börse importieren</button><button class="btn ghost" onclick="exportCSV()">CSV exportieren</button></div>
@@ -2420,7 +2937,7 @@ function drawEquity(arr){
 /* Trade bearbeiten / löschen / nachtragen */
 function tradeForm(t, isNew){
   return `<div class="tag">${isNew?'+ Trade nachtragen':'✎ Trade bearbeiten'}</div>
-    ${isNew?'<p class="hint">Für Trades ohne Checkliste. Sie zählen in deine Statistik, damit sie ehrlich bleibt.</p>':''}
+    ${isNew?'<p class="hint">Für Trades ohne Checkliste – damit deine Statistik ehrlich bleibt.</p>':''}
     <div class="grid2">
       <div class="f"><label for="e_coin">Coin</label><input id="e_coin" value="${esc(t.coin||'')}" autocomplete="off"></div>
       <div class="f"><label for="e_r">Ergebnis in R</label><input id="e_r" inputmode="decimal" value="${isFinite(t.R)?fmt(t.R):''}"></div>
@@ -2430,6 +2947,7 @@ function tradeForm(t, isNew){
     <div class="f"><label>Strategie</label>${chipRow('e_strat', strats(), t.strat||strats()[0], 'small')}</div>
     <div class="f"><label>Regeln eingehalten</label>${rulesRow('e_rules', t.rules||{})}</div>
     <div class="f"><label>Fehler</label>${mistakeRow('e_mist', t.err||[])}</div>
+    ${PRO ? `<div class="grid2"><div class="f"><label data-term="MAE">Max. gegen dich (R)</label>${excRow('e_mae', MAE_OPTS, t.mae)}</div><div class="f"><label data-term="MAE">Max. für dich (R)</label>${excRow('e_mfe', MFE_OPTS, t.mfe)}</div></div>` : ''}
     ${shotGrid(t)}${shotInput('e_shot')}
     <div class="f"><label for="e_note">Notiz</label><input id="e_note" value="${esc(t.note||'')}" autocomplete="off"></div>
     <div class="f"><label for="e_link">Chart-Link</label><input id="e_link" type="url" value="${esc(t.link||'')}" placeholder="https://…" autocomplete="off"></div>
@@ -2437,7 +2955,7 @@ function tradeForm(t, isNew){
     <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="${isNew?'saveManual()':`saveEdit('${t.id}')`}">Speichern</button></div>
     ${isNew?'':`<div class="row" style="margin-top:8px"><button class="btn ghost danger" style="flex:1" onclick="delTrade('${t.id}', this)">Trade löschen</button></div>`}`;
 }
-function bindForm(){ bindChips('e_dir'); bindChips('e_strat'); bindChips('e_rules', null, true); bindChips('e_mist', null, true); loadShotThumbs(); }
+function bindForm(){ bindChips('e_dir'); bindChips('e_strat'); bindChips('e_rules', null, true); bindChips('e_mist', null, true); bindChips('e_mae'); bindChips('e_mfe'); loadShotThumbs(); }
 const chipVal = id => $(`#${id} button.on`)?.dataset.v;
 function editTrade(id){
   const t = cache.journal.find(j => j.id===id); if (!t) return;
@@ -2449,7 +2967,8 @@ function saveEdit(id){
   const rules = readRules('e_rules');
   const files = $('#e_shot') ? [...$('#e_shot').files] : [];
   updateTrade(Object.assign({}, t, {coin: coinFmt($('#e_coin').value), R, strat: chipVal('e_strat')||t.strat, rules, plan: Object.values(rules).every(Boolean),
-    err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value)}));
+    err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value),
+    mae: excVal('e_mae') ?? (t.mae ?? null), mfe: excVal('e_mfe') ?? (t.mfe ?? null)}));
   attachShots(id, files);
   closeModal(); journal();
 }
@@ -2464,16 +2983,16 @@ function saveManual(){
   const R = num($('#e_r').value); if (!isFinite(R)){ $('#e_r').style.borderColor='var(--red)'; return; }
   const d = new Date($('#e_date').value); const rules = readRules('e_rules');
   const nt = {date: (isNaN(d) ? new Date() : d).toISOString(), coin: coinFmt($('#e_coin').value), dir: chipVal('e_dir')||'long', strat: chipVal('e_strat')||'',
-    R, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value), checklist:false, art:'nachgetragen', riskUsd: +(cfg.konto*cfg.risk/100).toFixed(2)};
+    R, rules, plan: Object.values(rules).every(Boolean), err: readMistakes('e_mist'), note: $('#e_note').value.trim().slice(0,500), link: cleanLink($('#e_link').value), checklist:false, art:'nachgetragen', riskUsd: +(cfg.konto*cfg.risk/100).toFixed(2), mae: excVal('e_mae'), mfe: excVal('e_mfe')};
   addTrade(nt); attachShots(nt.id, $('#e_shot') ? [...$('#e_shot').files] : []);
   closeModal(); rerender();
 }
 function exportCSV(){
   const j = journalList();
-  const rows = [['datum','coin','strategie','note','richtung','einstieg','stop','ziel','R','ausgang','regeln_eingehalten','bedingungen','einstieg_ok','stop_ok','ziel_ok','gefuehl','impulse','checkliste','notiz','chart']]
+  const rows = [['datum','coin','strategie','note','richtung','einstieg','stop','ziel','R','ausgang','regeln_eingehalten','bedingungen','einstieg_ok','stop_ok','ziel_ok','gefuehl','impulse','checkliste','notiz','chart','mae_r','mfe_r']]
     .concat(j.map(x=>[x.date,x.coin||'',x.strat||'',x.grade||'',x.dir,x.entry??'',x.sl??'',x.tp??'',x.R,x.art||'',x.plan?'ja':'nein',
       ...RULES.map(([k])=> x.rules ? (x.rules[k]===false?'nein':'ja') : ''), x.feel||'', x.impulse||0, x.checklist?'ja':'nein',
-      (x.note||'').replace(/[\n;]/g,' '), x.link||'']));
+      (x.note||'').replace(/[\n;]/g,' '), x.link||'', x.mae ?? '', x.mfe ?? '']));
   const csv = '\ufeff'+rows.map(r=>r.join(';')).join('\n');
   saveFile('trade_journal.csv', csv, 'text/csv');
 }
@@ -2484,7 +3003,7 @@ function exportCSV(){
 function settings(){
   curView = 'settings'; progress(null);
   const F = [['s_max','Max. Trades pro Tag',cfg.maxTrades],['s_loss','Max. Verlust pro Tag (R)',cfg.lossLimit],['s_crv','Min. Chance-Risiko (CRV)',cfg.minCRV],
-    ['s_risk','Risiko pro Trade (%)',cfg.risk],['s_lev','Standard-Hebel',cfg.hebel],['s_konto','Kontostand (USDT)',cfg.konto],
+    ['s_risk','Risiko pro Trade (%)',cfg.risk],...(PRO ? [['s_week','Max. Verlust pro Woche (R)',cfg.weekLimit],['s_dd','½ Risiko ab Drawdown (R)',cfg.ddCut]] : []),['s_lev','Standard-Hebel',cfg.hebel],['s_konto','Kontostand (USDT)',cfg.konto],
     ['s_cl','Pause nach Verlust (Min.)',cfg.cooldownLoss],['s_cw','Pause nach Gewinn (Min.)',cfg.cooldownWin],
     ['s_nw','Abstand zu News (Min.)',cfg.newsWin],['s_us','Sperre nach US-Börsenstart (Min.)',cfg.usOpenBlock]];
   render(`<div class="card">
@@ -2494,8 +3013,9 @@ function settings(){
     ${stratListHtml(true)}
     ${reminderHtml()}
     <div class="lbl3">Deine Grenzen</div>
-    ${(() => { const fld = f => `<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`, basic = ['s_konto','s_risk','s_max','s_loss'];
+    ${(() => { const fld = f => `<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`, basic = ['s_konto','s_risk','s_max','s_loss','s_week','s_dd'];
       return `<div class="grid2">${F.filter(f => basic.includes(f[0])).map(fld).join('')}</div>
+      ${PRO ? '<p class="hint small" style="margin:-4px 0 10px">Wochen-Limit und Drawdown-Schutz: 0 = aus.</p>' : ''}
       <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
     <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
       <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
@@ -2526,7 +3046,7 @@ function saveSettings(quiet){
   const pos = (v, d) => isFinite(v) && v>0 ? v : d, nn = (v, d) => isFinite(v) && v>=0 ? Math.round(v) : d;
   Object.assign(cfg, {maxTrades: Math.round(pos(g('s_max'),2)), lossLimit: pos(g('s_loss'),2), minCRV: pos(g('s_crv'),2), risk: pos(g('s_risk'),1),
     hebel: pos(g('s_lev'),5), konto: pos(g('s_konto'),1000), cooldownLoss: nn(g('s_cl'),15), cooldownWin: nn(g('s_cw'),5),
-    newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10)});
+    newsWin: nn(g('s_nw'),30), usOpenBlock: nn(g('s_us'),10), weekLimit: $('#s_week') && isFinite(g('s_week')) && g('s_week')>=0 ? g('s_week') : cfg.weekLimit, ddCut: $('#s_dd') && isFinite(g('s_dd')) && g('s_dd')>=0 ? g('s_dd') : cfg.ddCut});
   saveCfg(); if (quiet) return;
   const b = $('#s_save'); if (b){ b.textContent = '✓ Gespeichert'; b.classList.add('saved'); setTimeout(() => { if (b.isConnected){ b.textContent = 'Speichern'; b.classList.remove('saved'); } }, 1600); }
 }
@@ -3063,6 +3583,10 @@ function importBackup(inp){
    Start der App
 ------------------------------------------------------------------ */
 async function boot(){
+  if (PRO){ const bar = document.createElement('div'); bar.className = 'demobar';
+    bar.innerHTML = DEMO ? 'Demo mit Beispieldaten · deine echten Daten bleiben unberührt <a href="?demo=0">Beenden</a>'
+      : 'Vorschau: Pro-Funktionen aktiv <a href="?demo=1">Mit Beispieldaten ansehen</a> <a href="?pro=0">Ausschalten</a>';
+    document.body.prepend(bar); }
   startI18n();
   if (!HAS_BACKEND){ if (needsDisclaimer() || !restoreNav()) home(); startSync(); return; }
   let session = null;
@@ -3071,7 +3595,7 @@ async function boot(){
   startSync();
 }
 boot();
-if ('serviceWorker' in navigator && location.protocol === 'https:'){
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.TP_PREVIEW){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
   let reloaded = !navigator.serviceWorker.controller;   /* erster Besuch: nicht neu laden */
   navigator.serviceWorker.addEventListener('controllerchange', () => {
