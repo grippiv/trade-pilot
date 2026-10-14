@@ -155,24 +155,33 @@ const needsLogin = () => HAS_BACKEND && !LS.get('localMode', false);
    Übersetzt alles, was angezeigt wird – Zahlen bleiben erhalten, eigene Eingaben (Coins, Notizen, Strategienamen) bleiben unverändert.
    ================================================================== */
 const I18N_READY = true;
-let LANG = (() => { try { const q = new URLSearchParams(location.search).get('lang'); if (q === 'de' || q === 'en') LS.set('lang', q); } catch(e){}
-  const s = LS.get('lang', null); if (s === 'de' || s === 'en') return s; return I18N_READY ? (/^de\b/i.test(navigator.language || 'de') ? 'de' : 'en') : 'de'; })();
-const LOC = () => LANG === 'en' ? 'en-US' : 'de-DE';
+/* Unterstützte Sprachen: [Code, Eigenname, Flagge, Locale]. Wörterbücher außer DE/EN liegen in lang/xx.js und werden nur bei Bedarf geladen. */
+const LANGS = [['de','Deutsch','🇩🇪','de-DE'],['en','English','🇬🇧','en-US'],['es','Español','🇪🇸','es-ES'],['pt','Português','🇧🇷','pt-BR'],['fr','Français','🇫🇷','fr-FR'],
+  ['tr','Türkçe','🇹🇷','tr-TR'],['ru','Русский','🇷🇺','ru-RU'],['zh','中文','🇨🇳','zh-CN'],['ja','日本語','🇯🇵','ja-JP'],['ko','한국어','🇰🇷','ko-KR']];
+const LANG_CODES = LANGS.map(l => l[0]);
+const langOk = l => LANG_CODES.includes(l) && (l === 'de' || l === 'en' || (window.I18N_X && window.I18N_LANG === l));
+let LANG = (() => { try { const q = new URLSearchParams(location.search).get('lang'); if (LANG_CODES.includes(q)) LS.set('lang', q); } catch(e){}
+  const s = LS.get('lang', null); if (LANG_CODES.includes(s)) return langOk(s) ? s : 'en';
+  const nav = String(navigator.language || 'en').slice(0, 2).toLowerCase();
+  return nav === 'de' ? 'de' : langOk(nav) ? nav : 'en'; })();
+const LOC = () => (LANGS.find(l => l[0] === LANG) || LANGS[1])[3];
+const DEC = (1.5).toLocaleString(LOC()).replace(/[^.,]/g, '') || '.';      // Dezimaltrenner der Sprache
 const I18N_EN = {};            // wird unten befüllt
-const NUM_RE = /[+\-−]?\d[\d.,:]*%?/g;
-const i18nKey = s => s.replace(/\s+/g, ' ').trim().replace(NUM_RE, '#');
+const NUM_RE = /[+\-−]?\d(?:[\d.,:]|[\u00a0\u202f](?=\d{3}(?!\d)))*%?/g;   // auch 1 000,50 (FR/RU)
+const i18nKey = s => s.replace(NUM_RE, '#').replace(/\s+/g, ' ').trim();
 function tr(s){
   if (LANG === 'de' || s == null) return s;
   const raw = String(s), lead = raw.match(/^\s*/)[0], tail = raw.match(/\s*$/)[0], core = raw.trim();
   if (!core) return raw;
-  const en = I18N_EN[i18nKey(core)];
+  const k = i18nKey(core), X = LANG === 'en' ? null : window.I18N_X;
+  const en = (X && X[k] !== undefined) ? X[k] : I18N_EN[k];
   if (en === undefined) return trParts(raw);
-  const nums = core.replace(/\s+/g, ' ').match(NUM_RE) || []; let i = 0;
+  const nums = core.match(NUM_RE) || []; let i = 0;
   return lead + en.replace(/#/g, () => nums[i++] ?? '') + tail;
 }
 /* Für zusammengesetzte Texte mit eigenen Inhalten (z. B. „SOL LONG · Meine Strategie · Einstieg 1,4“) */
 const I18N_PARTS = [];
-function trParts(s){ let o = s; for (const [re, en] of I18N_PARTS) o = o.replace(re, en); return o; }
+function trParts(s){ let o = s; const X = LANG === 'en' ? null : window.I18N_PARTS_X; I18N_PARTS.forEach(([re, en], i) => { o = o.replace(re, (X && X[i]) || en); }); return o; }
 const I18N_ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
 function localize(root){
   if (LANG === 'de' || !root) return;
@@ -186,7 +195,7 @@ let i18nObs = null;
 function startI18n(){
   document.documentElement.lang = LANG;
   if (LANG === 'de') return;
-  document.title = 'NoTilt – Trading Checklist & Journal';
+  document.title = 'NoTilt – ' + tr('Trading-Checkliste & Journal');
   localize(document.body);
   i18nObs = new MutationObserver(muts => {
     for (const m of muts){
@@ -197,7 +206,14 @@ function startI18n(){
   });
   i18nObs.observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS});
 }
-function setLang(l){ LS.set('lang', l); location.reload(); }
+function setLang(l){ LS.set('lang', l); location.href = location.pathname; }
+function langPicker(){
+  const pick = l => `if('${l}'!==LANG){ if (curView==='settings' && typeof saveSettings==='function') saveSettings(true); setLang('${l}'); } else closeModal();`;
+  modal(`<div class="tag">● Sprache</div><div class="q">Sprache wählen</div>
+    <div class="langlist" translate="no">${LANGS.map(([c, n, f]) => `<button type="button" class="${c === LANG ? 'on' : ''}" data-l="${c}" onclick="${pick(c)}"><span class="lf">${f}</span><span class="ln">${n}</span>${c === LANG ? '<span class="lc">✓</span>' : ''}</button>`).join('')}</div>
+    <div class="row"><button class="btn ghost" style="flex:1" onclick="closeModal()">Abbrechen</button></div>`);
+}
+const langName = () => { const l = LANGS.find(x => x[0] === LANG) || LANGS[0]; return l[2] + ' ' + l[1]; };
 /* ==================================================================
    Englisches Wörterbuch. Schlüssel = deutscher Text, Zahlen als #.
    ================================================================== */
@@ -680,6 +696,8 @@ Object.assign(I18N_EN, {
   'Danke, dass du dabei bist!': 'Thanks for being part of it!',
   'Alles klar': 'Got it',
   'Aktiv ✓ Eine Testnachricht ist unterwegs – sie kommt in ein paar Sekunden.': 'Active ✓ A test notification is on its way – it arrives in a few seconds.',
+  '● Sprache': '● Language',
+  'Sprache wählen': 'Choose language',
   'Impressum': 'Legal notice',
   'Datenschutz': 'Privacy',
 
@@ -973,7 +991,7 @@ const IFTHEN_EN = {
   revenge:['I just took a loss', 'I take the full break before I look at the chart again'],
   plan:   ['I want to break a rule', 'I tap the impulse in the app first']
 };
-const ifthen = k => (LANG === 'en' ? IFTHEN_EN : IFTHEN)[k];
+const ifthen = k => LANG === 'de' ? IFTHEN[k] : LANG === 'en' ? IFTHEN_EN[k] : IFTHEN[k].map(x => tr(x));
 const WEEKDAYS = [[1,'Mo'],[2,'Di'],[3,'Mi'],[4,'Do'],[5,'Fr'],[6,'Sa'],[7,'So']];
 
 /* ---------- Datum-Helfer ---------- */
@@ -1177,7 +1195,7 @@ async function pushToggle(){
       sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64ToUint8(pub)});
     }
     const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review,
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' ? LANG : 'de')});
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' && LANG !== 'de' ? 'en' : 'de')});
     if (!res.ok) throw new Error(res.error || 'Server');
     cfg.reminder = Object.assign(r, {on: true}); saveCfg();
     const t = await pushCall({action: 'test'}).catch(() => ({}));
@@ -1525,7 +1543,8 @@ function calendar(){
   const vals = Object.values(byDay), mR = vals.reduce((a, v) => a + v.r, 0), mU = vals.reduce((a, v) => a + v.u, 0), mN = vals.reduce((a, v) => a + v.n, 0);
   const max = Math.max(1, ...vals.map(v => Math.abs(v.r)));
   const name = profMonth.toLocaleDateString(LOC(), {month: 'long', year: 'numeric'});
-  const wd = (LANG === 'en' ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : ['Mo','Di','Mi','Do','Fr','Sa','So']);
+  const wd = LANG === 'de' ? ['Mo','Di','Mi','Do','Fr','Sa','So'] : LANG === 'en' ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+    : [0,1,2,3,4,5,6].map(i => new Date(2024, 0, 1 + i).toLocaleDateString(LOC(), {weekday: 'short'}));
   let cells = wd.map(w => `<span class="cw">${w}</span>`).join('') + '<span class="ce"></span>'.repeat(lead);
   for (let d = 1; d <= days; d++){
     const v = byDay[d], a = v ? Math.min(1, .25 + .75 * Math.abs(v.r) / max) : 0;
@@ -1631,7 +1650,7 @@ function disclaimer(){
     <p class="hint">Strategie-Vorlagen, Beispiele und Auswertungen in der App dienen nur zum Lernen und zur Selbstkontrolle. Vergangene Ergebnisse – auch deine eigenen – garantieren nichts für die Zukunft. Bitte bestätige:</p>
     <div class="checks">${DISC_ITEMS.map(t => `<button class="ck" onclick="this.classList.toggle('on');discUpd()"><span class="box"></span><span>${t}</span></button>`).join('')}</div>
     <div class="row"><button class="btn pri" id="discok" style="flex:1" disabled onclick="discAccept()">Verstanden – weiter</button></div>
-    <p class="disc"><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a> · <a href="#" onclick="setLang(LANG==='en'?'de':'en');return false">${LANG === 'en' ? 'Deutsch' : 'English'}</a></p>
+    <p class="disc"><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a> · <a href="#" onclick="langPicker();return false" translate="no">🌐 ${langName()}</a></p>
   </div>`);
 }
 function discUpd(){ const b = $('#discok'); if (b) b.disabled = $$('.disc1 .ck').some(x => !x.classList.contains('on')); }
@@ -1719,9 +1738,9 @@ const sgn = (n, d=2) => isFinite(n) ? (n>0?'+':'') + fmt(n,d) : '–';
 /* Zahlen lesen: Komma oder Punkt als Dezimaltrenner; Tausender-Trenner werden erkannt (1.234,5 und 1,234.5) */
 const num = v => { let x = String(v ?? '').trim().replace(/\s/g, '');
   if (x.includes(',') && x.includes('.')) x = x.lastIndexOf(',') > x.lastIndexOf('.') ? x.replace(/\./g, '') : x.replace(/,/g, '');
-  else if (LANG === 'en' && /^\d{1,3}(,\d{3})+$/.test(x)) x = x.replace(/,/g, '');
+  else if (DEC === '.' && /^\d{1,3}(,\d{3})+$/.test(x)) x = x.replace(/,/g, '');
   return parseFloat(x.replace(',', '.')); };
-const decStr = v => LANG === 'en' ? String(v) : String(v).replace('.', ',');
+const decStr = v => DEC === '.' ? String(v) : String(v).replace('.', ',');
 const mmss = ms => { const s = Math.ceil(ms/1000); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
 const coinFmt = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
 /* Zeiten: Sessions und US-Börsenstart in der Zeitzone der jeweiligen Börse – stimmt weltweit und auch in den Wochen,
@@ -2478,7 +2497,7 @@ function settings(){
       <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
     <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
       <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
-    <div class="f tog"><label>Sprache / Language</label><div class="chips small" id="s_lang" translate="no"><button type="button" data-v="de" class="${LANG==='de'?'on':''}">Deutsch</button><button type="button" data-v="en" class="${LANG==='en'?'on':''}">English</button></div></div>
+    <div class="f tog"><label>Sprache / Language</label><button type="button" class="langbtn" onclick="langPicker()"><span translate="no">${langName()}</span><em>›</em></button></div>
     <details class="more"><summary>Design & Töne</summary>
     <div class="f tog"><label>Design</label>${chipRow('s_theme', [['cyan','Cyan (Standard)'],['gold','Gold']], document.documentElement.dataset.theme === 'gold' ? 'gold' : 'cyan', 'small')}</div>
     <div class="f tog"><label>Töne (Atmen, Pause vorbei, Stopp, Plan eingehalten)</label><div class="sndrow">${chipRow('s_sound', [['an','An'],['aus','Aus']], cfg.sound===false ? 'aus' : 'an', 'small')}<button class="mini" type="button" onclick="cfg.sound=true;Snd.demo()">▶ Ton testen</button></div>
@@ -2494,7 +2513,7 @@ function settings(){
     </details>
     <p class="disc">NoTilt ist ein Werkzeug für Disziplin und Selbstbeobachtung – keine Anlageberatung. Gehebelter Handel mit Kryptowährungen kann zum Totalverlust des eingesetzten Kapitals führen.<br><a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Datenschutz</a></p>
   </div>`);
-  later(() => { bindChips('s_lang', v => { if (v !== LANG){ saveSettings(true); setLang(v); } });
+  later(() => {
     bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); });
     bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindReminder(); });
@@ -2694,10 +2713,11 @@ const TEMPLATES = [
 ];
 const sid = () => 's' + Date.now().toString(36) + Math.floor(Math.random()*1e4).toString(36);
 const tplByName = n => { const q = String(n||'').toLowerCase().trim(); if (!q) return null;
-  const names = t => [t.name, t.en && t.en.name].filter(Boolean).map(x => x.toLowerCase());
+  const names = t => [t.name, t.en && t.en.name, LANG !== 'de' && LANG !== 'en' && tr(t.name)].filter(Boolean).map(x => x.toLowerCase());
   return TEMPLATES.find(t => names(t).includes(q)) || TEMPLATES.find(t => names(t).some(x => x.startsWith(q))) || null; };
 /* Vorlagen in der Sprache des Nutzers anlegen – gespeichert wird, was er sieht und bearbeitet */
-const tplL = t => (LANG === 'en' && t.en) ? Object.assign({icon: t.icon}, t.en) : t;
+const tplL = t => LANG === 'de' ? t : (LANG === 'en' && t.en) ? Object.assign({icon: t.icon}, t.en)
+  : {icon: t.icon, name: tr(t.name), desc: tr(t.desc || ''), checks: (t.checks || []).map(c => tr(c)), stop: tr(t.stop || ''), target: tr(t.target || '')};
 function fromTemplate(t){ const l = tplL(t); return {id: sid(), name: l.name, checks: l.checks.slice(), stop: l.stop||'', target: l.target||''}; }
 function strategies(){
   if (Array.isArray(cfg.strategies) && cfg.strategies.length) return cfg.strategies;
@@ -2709,7 +2729,7 @@ function strategies(){
   return cfg.strategies;
 }
 const stratBy = name => strategies().find(s => s.name === name) || strategies()[0];
-const defChecks = () => LANG === 'en' ? DEFAULT_CHECKS_EN : DEFAULT_CHECKS;
+const defChecks = () => LANG === 'de' ? DEFAULT_CHECKS : LANG === 'en' ? DEFAULT_CHECKS_EN : DEFAULT_CHECKS.map(c => tr(c));
 const checksFor = name => { const s = stratBy(name); return s && s.checks.length ? s.checks : defChecks(); };
 function ckHtml(name){ return checksFor(name).map(c=>`<button class="ck" onclick="this.classList.toggle('on');ckUpd()"><span class="box"></span><span>${esc(c)}</span></button>`).join(''); }
 const needsOnboarding = () => !cfg.onboarded && !cache.journal.length && !(Array.isArray(cfg.strategies) && cfg.strategies.length);

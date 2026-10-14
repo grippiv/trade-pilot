@@ -453,6 +453,13 @@ ol.steps{margin:6px 0 4px 20px;color:var(--txt);line-height:1.7}
   background:var(--bg)}
 .top::after{content:"";position:absolute;left:0;right:0;top:100%;height:14px;pointer-events:none;background:linear-gradient(var(--bg),rgba(0,0,0,0))}
 
+.langbtn{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#161616;color:var(--txt);font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.langbtn em{font-style:normal;color:var(--mut);font-size:20px;line-height:1}
+.langlist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 6px}
+.langlist button{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#161616;color:var(--txt);font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.langlist button.on{border-color:var(--gold);background:rgba(0,229,255,.08)}
+.langlist .lf{font-size:20px;line-height:1}.langlist .ln{flex:1}.langlist .lc{color:var(--gold);font-weight:800}
+
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}
 .btn{border-radius:10px}
