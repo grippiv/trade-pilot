@@ -1971,7 +1971,7 @@ function calendar(){
     : [0,1,2,3,4,5,6].map(i => new Date(2024, 0, 1 + i).toLocaleDateString(LOC(), {weekday: 'short'}));
   let cells = wd.map(w => `<span class="cw">${w}</span>`).join('') + '<span class="ce"></span>'.repeat(lead);
   for (let d = 1; d <= days; d++){
-    const v = byDay[d], a = v ? Math.min(1, .25 + .75 * Math.abs(v.r) / max) : 0;
+    const v = byDay[d], a = v ? Math.min(.55, .18 + .37 * Math.abs(v.r) / max) : 0;   /* gedeckelt, damit weiße Zahlen lesbar bleiben */
     const bg = v ? (v.r >= 0 ? `rgba(52,211,153,${a})` : `rgba(248,113,113,${a})`) : '';
     cells += `<span class="cd ${v ? 'has' : ''}" style="${bg ? 'background:' + bg : ''}" title="${v ? sgn(v.r, 1) + ' R · ' + v.n + ' Trades' : ''}"><i>${d}</i>${v ? `<b>${sgn(v.r, 1)}</b>` : ''}</span>`;
   }

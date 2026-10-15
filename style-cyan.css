@@ -1,5 +1,5 @@
 :root{
-  --bg:#000000; --bg2:#080808; --card:#111111; --line:#242424; --txt:#ffffff; --mut:#8c8c8c;
+  --bg:#000000; --bg2:#080808; --card:#111111; --line:#242424; --txt:#ffffff; --mut:#9c9c9c;
   --gold:#00e5ff; --gold2:#8af4ff; --green:#20c58a; --red:#f6465d; --blue:#4f8cff;
   --r:14px;
   color-scheme:dark;
@@ -184,7 +184,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 @media (max-width:560px){
   .grid{grid-template-columns:1fr}.calc{grid-template-columns:1fr 1fr}.plan{grid-template-columns:1fr 1fr}
   .temps{grid-template-columns:1fr}.ends{grid-template-columns:1fr}.jstats{grid-template-columns:1fr 1fr}
-  .bigwrap{width:210px;height:210px}.phase .lbl{font-size:10px}
+  .bigwrap{width:210px;height:210px}.phase .lbl{font-size:11px}
 }
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -374,8 +374,8 @@ details.howto p{margin:6px 0;line-height:1.45}
 .calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:8px}
 .calgrid .cw{font-size:11px;color:var(--mut);text-align:center;padding:2px 0}
 .calgrid .cd{aspect-ratio:1/1;border-radius:8px;background:#0e0e0e;border:1px solid #1c1c1c;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;min-width:0}
-.calgrid .cd i{font-style:normal;color:var(--mut);font-size:10px}
-.calgrid .cd.has i{color:rgba(255,255,255,.8)}
+.calgrid .cd i{font-style:normal;color:var(--mut);font-size:11px}
+.calgrid .cd.has i{color:rgba(255,255,255,.92)}
 .calgrid .cd b{font-size:11px;color:#fff;font-weight:800}
 @media (max-width:440px){.nav{gap:5px}.nav button{padding:7px 8px;font-size:12.5px}}
 
@@ -611,7 +611,7 @@ a.ich{text-decoration:none}
 .calweek .calrow .cn{white-space:normal}
 .calweek .calrow{grid-template-columns:auto auto minmax(0,1fr);row-gap:2px}
 .calweek .calrow em{grid-column:3}
-.cfp{color:var(--mut);opacity:.8}
+.cfp{color:var(--mut)}
 .calday{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
 .calday .cdl{font-size:12.5px;color:var(--mut);width:100%}
 .calchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
@@ -628,6 +628,24 @@ a.ich{text-decoration:none}
 .fbcta{margin:14px 0 4px;max-width:none}
 .f textarea{resize:vertical;min-height:110px;line-height:1.45}
 .calcard.stale .calnone{color:var(--gold)}
+
+/* Lesbarkeit & Bedienbarkeit (Audit 15.10.): größere Tippflächen, kleine Handys */
+.chips button{min-height:40px}
+.chips.small button{min-height:36px;padding:7px 12px}
+.linkbtn{display:inline-block;padding:12px 2px;margin-top:6px}
+.authlinks .linkbtn{margin-top:0}
+details.more summary{padding:10px 0}
+.mini{padding:6px 0}
+.sndrow .mini{padding:10px 0}
+.brand .beta{position:relative}
+.brand .beta::after{content:"";position:absolute;inset:-12px -8px}
+@media (max-width:360px){
+  .card{padding:22px 14px}
+  .kpi{padding:10px 5px}
+  .kpi .v{font-size:16px}
+  .kpi .l{letter-spacing:.2px}
+  .jstats .kpi .v{font-size:15px}
+}
 
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}
