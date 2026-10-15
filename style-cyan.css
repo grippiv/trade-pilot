@@ -620,6 +620,15 @@ a.ich{text-decoration:none}
 .note.calsoon{color:#f0b429;border-color:rgba(240,180,41,.4);background:rgba(240,180,41,.07)}
 .calhit{margin-bottom:12px}.calhit em{margin-left:auto;font-style:normal;font-variant-numeric:tabular-nums;color:var(--mut)}
 
+/* Was ist neu · Feedback · veralteter Kalender */
+.newlist{display:grid;gap:10px;margin:4px 0 16px}
+.newlist>div{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.newlist b{font-size:15px}
+.newlist span{font-size:13.5px;color:var(--mut)}
+.fbcta{margin:14px 0 4px;max-width:none}
+.f textarea{resize:vertical;min-height:110px;line-height:1.45}
+.calcard.stale .calnone{color:var(--gold)}
+
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}
 .btn{border-radius:10px}

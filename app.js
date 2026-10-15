@@ -1353,6 +1353,38 @@ Object.assign(I18N_EN, {
   "News um # Uhr – kein Trade.": "News at # – no trade.",
   "Warnen: Trade mit ½ Risiko möglich. Sperren: kein Trade.": "Warn: trading with ½ risk possible. Block: no trade."
 });
+/* Was ist neu · Feedback · Kalender veraltet · News-Push */
+Object.assign(I18N_EN, {
+  '✦ Neu in NoTilt': '✦ New in NoTilt',
+  'Das ist neu': "What's new",
+  'Wichtige US-Termine direkt auf der Startseite.': 'Major US events right on the home screen.',
+  'News-Warnung': 'News warning',
+  'Kurz vor großen News fragt NoTilt nach. Trade nur mit ½ Risiko.': 'Right before big news, NoTilt checks in. Trade with ½ risk only.',
+  'Feedback': 'Feedback',
+  'Fehler gefunden oder ein Wunsch? Schick es direkt aus der App.': 'Found a bug or have a wish? Send it right from the app.',
+  'Feedback geben': 'Give feedback',
+  '✉ Feedback': '✉ Feedback',
+  'Was können wir besser machen?': 'What can we do better?',
+  'Geht direkt an den Entwickler.': 'Goes straight to the developer.',
+  'Problem': 'Problem',
+  'Wunsch': 'Wish',
+  'Lob': 'Praise',
+  'Deine Nachricht': 'Your message',
+  'Was ist passiert – oder was fehlt dir?': "What happened – or what's missing?",
+  'E-Mail für Rückfragen (optional)': 'Email for follow-up questions (optional)',
+  'Senden': 'Send',
+  'Schreib kurz, worum es geht.': "Briefly write what it's about.",
+  'Die E-Mail sieht nicht richtig aus.': "That email doesn't look right.",
+  'In der Demo nicht verfügbar.': 'Not available in the demo.',
+  'Kurz warten – du hast gerade erst etwas geschickt.': 'Wait a moment – you just sent something.',
+  'Danke! Ist angekommen.': 'Thanks! It arrived.',
+  'Senden hat nicht geklappt. Prüf deine Verbindung und versuch es noch mal.': "Sending didn't work. Check your connection and try again.",
+  'Feedback senden': 'Send feedback',
+  'Fehler, Wunsch oder Lob – geht direkt an den Entwickler.': 'Bug, wish or praise – goes straight to the developer.',
+  'Kalender gerade nicht aktuell – News bitte selbst prüfen.': 'Calendar not up to date right now – please check the news yourself.',
+  'Wichtige News': 'Major news',
+  '# Min. vorher': '# min before'
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -1549,7 +1581,7 @@ async function pushCall(body){
   const r = await fetch(PUSH_URL, {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok}, body: JSON.stringify(body)});
   return r.json().catch(() => ({}));
 }
-function reminderCfg(){ return Object.assign({time: '15:00', days: [1,2,3,4,5], review: true, on: false}, cfg.reminder || {}); }
+function reminderCfg(){ return Object.assign({time: '15:00', days: [1,2,3,4,5], review: true, news: true, on: false}, cfg.reminder || {}); }
 function reminderHtml(){
   const r = reminderCfg();
   const blocked = !HAS_BACKEND ? 'Erinnerungen brauchen ein Konto.' : !Sync.ok ? 'Melde dich an, um Erinnerungen zu nutzen.'
@@ -1559,18 +1591,19 @@ function reminderHtml(){
     <p class="hint small">Feste Zeit, fester Auslöser: <b>Wenn</b> es ${esc(r.time)} Uhr ist und ich an die Charts gehe, <b>dann</b> mache ich zuerst den Tages-Check.</p>
     <div class="grid2"><div class="f"><label for="rm_time">Uhrzeit</label><input id="rm_time" type="time" value="${esc(r.time)}"></div>
       <div class="f"><label>Wochenrückblick</label>${chipRow('rm_rev', [['an','So 18 Uhr'],['aus','Aus']], r.review ? 'an' : 'aus', 'small')}</div></div>
+    ${CAL ? `<div class="f"><label>Wichtige News</label>${chipRow('rm_news', [['an','30 Min. vorher'],['aus','Aus']], r.news ? 'an' : 'aus', 'small')}</div>` : ''}
     <div class="f"><label>Tage</label><div class="chips small" id="rm_days">${WEEKDAYS.map(([d, l]) => `<button type="button" data-v="${d}" class="${r.days.includes(d) ? 'on' : ''}">${l}</button>`).join('')}</div></div>
     ${blocked ? `<p class="hint small warnc">${blocked}</p>` : `<div class="row" style="margin-top:0"><button class="btn ${r.on ? 'ghost' : 'pri'}" style="flex:1" id="rm_btn" onclick="pushToggle()">${r.on ? 'Erinnerung aktualisieren' : 'Push-Erinnerung aktivieren'}</button>
       ${r.on ? `<button class="btn ghost" style="flex:1" onclick="pushTest(this)">Test senden</button>` : ''}</div>
       ${r.on ? `<button class="linkbtn" onclick="pushOff()">Erinnerung ausschalten</button>` : ''}`}
     <p class="msg" id="rm_msg"></p>`;
 }
-function bindReminder(){ bindChips('rm_days', null, true); bindChips('rm_rev'); }
+function bindReminder(){ bindChips('rm_days', null, true); bindChips('rm_rev'); bindChips('rm_news'); }
 function readReminder(){
   const r = reminderCfg(), t = $('#rm_time');
   if (!t) return r;
   const days = $$('#rm_days button.on').map(b => +b.dataset.v);
-  return Object.assign(r, {time: t.value || '15:00', days: days.length ? days : [1,2,3,4,5], review: (chipVal('rm_rev') || 'an') === 'an'});
+  return Object.assign(r, {time: t.value || '15:00', days: days.length ? days : [1,2,3,4,5], review: (chipVal('rm_rev') || 'an') === 'an', news: (chipVal('rm_news') || 'an') === 'an'});
 }
 async function pushToggle(){
   const msg = $('#rm_msg'), btn = $('#rm_btn'); const r = readReminder();
@@ -1585,7 +1618,7 @@ async function pushToggle(){
       const { pub } = await fetch(PUSH_URL).then(x => x.json());
       sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64ToUint8(pub)});
     }
-    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review,
+    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review, news: r.news !== false,
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' && LANG !== 'de' ? 'en' : 'de')});
     if (!res.ok) throw new Error(res.error || 'Server');
     cfg.reminder = Object.assign(r, {on: true}); saveCfg();
@@ -2225,7 +2258,13 @@ async function loadCal(){
     if (changed && curView === 'home' && !$('#modal.on')) { stopTimers(); home(); }
   } catch (e) {}
 }
-const calEvents = () => ((calData && calData.events) || []).map(e => ({...e, ts: Date.parse(e.t)}))
+/* Daten veraltet? Liegen alle Termine vor dem Montag dieser Woche, hängt der Abruf – dann nicht „keine Termine“ behaupten */
+function calStale(){
+  const ts = ((calData && calData.events) || []).map(e => Date.parse(e.t)).filter(isFinite); if (!ts.length) return false;
+  const mon = new Date(); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+  return Math.max(...ts) < mon.getTime();
+}
+const calEvents = () => calStale() ? [] : ((calData && calData.events) || []).map(e => ({...e, ts: Date.parse(e.t)}))
   .filter(e => isFinite(e.ts) && CAL_CUR.includes(e.cur) && (e.imp === 'High' || e.imp === 'Medium')).sort((a, b) => a.ts - b.ts);
 const hhmm = ts => new Date(ts).toLocaleTimeString(LOC(), {hour: '2-digit', minute: '2-digit'});
 const calToday = () => calEvents().filter(e => isToday(e.ts));
@@ -2278,6 +2317,7 @@ function calGroups(list){
 function calHomeHtml(){
   if (!CAL) return '';
   if (!calData) return '';
+  if (calStale()) return `<div class="calcard stale"><span class="calh"><span class="tn">Wirtschaftskalender</span></span><p class="calnone">Kalender gerade nicht aktuell – News bitte selbst prüfen.</p></div>`;
   const g = calGroups(calToday()), now = Date.now(), blk = calBlock();
   const rows = g.length ? g.map(x => { const past = x.ts < now - calWin(x.items[0]).post * 60000, live = blk && blk.ts === x.ts;
     return `<div class="calrow ${past ? 'past' : ''} ${live ? 'live' : ''}"><b class="ct">${hhmm(x.ts)}</b>${impDots(x.imp)}<span class="cn">${x.items.map(e => esc(e.title)).join(' · ')}</span><em>${live ? (cfg.newsMode === 'block' ? 'Sperre aktiv' : 'Vorsicht') : past ? '' : inTxt(x.ts)}</em></div>`; }).join('')
@@ -2295,6 +2335,56 @@ function calWeek(){
       : '<p class="calnone">Gerade keine Termine geladen.</p>'}</div>
     <p class="hint small">Deine Zeitzone · Quelle: Forex Factory</p>
     <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
+/* ==================================================================
+   „Was ist neu“ (einmal pro Update) und Feedback an den Entwickler
+   ================================================================== */
+const NEW_ID = '2026-10-cal';
+function whatsNew(force){
+  if (!force){
+    if (DEMO || LS.get('seenNew', '') === NEW_ID) return;
+    if (needsOnboarding()){ LS.set('seenNew', NEW_ID); return; }   /* neue Nutzer sehen sowieso alles frisch */
+    if (curView !== 'home' || $('#modal.on')) return;
+  }
+  LS.set('seenNew', NEW_ID);
+  modal(`<div class="tag">✦ Neu in NoTilt</div>
+    <div class="q">Das ist neu</div>
+    <div class="newlist">
+      <div><b>Wirtschaftskalender</b><span>Wichtige US-Termine direkt auf der Startseite.</span></div>
+      <div><b>News-Warnung</b><span>Kurz vor großen News fragt NoTilt nach. Trade nur mit ½ Risiko.</span></div>
+      <div><b>Feedback</b><span>Fehler gefunden oder ein Wunsch? Schick es direkt aus der App.</span></div>
+    </div>
+    <div class="row"><button class="btn ghost" onclick="feedbackModal()">Feedback geben</button><button class="btn pri" onclick="closeModal()">Alles klar</button></div>`);
+}
+
+function feedbackModal(){
+  modal(`<div class="tag">✉ Feedback</div>
+    <div class="q">Was können wir besser machen?</div>
+    <p class="hint small">Geht direkt an den Entwickler.</p>
+    <div class="f">${chipRow('fb_kind', [['bug','Problem'],['idea','Wunsch'],['praise','Lob']], 'idea', 'small')}</div>
+    <div class="f"><label for="fb_txt">Deine Nachricht</label><textarea id="fb_txt" rows="5" maxlength="2000" placeholder="Was ist passiert – oder was fehlt dir?"></textarea></div>
+    <div class="f"><label for="fb_mail">E-Mail für Rückfragen (optional)</label><input id="fb_mail" type="email" maxlength="200" autocomplete="email" inputmode="email"></div>
+    <p class="msg" id="fb_msg"></p>
+    <div class="row"><button class="btn ghost" onclick="closeModal()">Abbrechen</button><button class="btn pri" id="fb_send" onclick="feedbackSend()">Senden</button></div>`);
+  later(() => { bindChips('fb_kind'); const t = $('#fb_txt'); if (t) t.focus(); });
+}
+async function feedbackSend(){
+  const txt = ($('#fb_txt').value || '').trim(), mail = ($('#fb_mail').value || '').trim(), m = $('#fb_msg'), b = $('#fb_send');
+  const say = (t, ok) => { m.textContent = t; m.className = 'msg ' + (ok ? 'good' : 'bad'); };
+  if (txt.length < 3) { $('#fb_txt').focus(); return say('Schreib kurz, worum es geht.'); }
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { $('#fb_mail').focus(); return say('Die E-Mail sieht nicht richtig aus.'); }
+  if (!sb) return say('In der Demo nicht verfügbar.');
+  if (Date.now() - (LS.get('fbAt', 0) || 0) < 60000) return say('Kurz warten – du hast gerade erst etwas geschickt.');
+  b.disabled = true;
+  const row = {kind: chipVal('fb_kind') || 'idea', text: txt.slice(0, 2000), contact: mail.slice(0, 200) || null,
+    lang: typeof LANG !== 'undefined' ? LANG : 'de', ver: NEW_ID, view: String(curView || '').slice(0, 30),
+    ua: navigator.userAgent.slice(0, 200), user_id: Sync.ok && Sync.uid ? Sync.uid : null};
+  try {
+    const { error } = await sb.from('feedback').insert(row);
+    if (error) throw error;
+    LS.set('fbAt', Date.now());
+    say('Danke! Ist angekommen.', true); setTimeout(closeModal, 1400);
+  } catch (e) { b.disabled = false; say('Senden hat nicht geklappt. Prüf deine Verbindung und versuch es noch mal.'); }
 }
 /* ==================================================================
    Trade-Details: Antippen eines Trades im Journal zeigt alles, was du
@@ -3218,6 +3308,7 @@ function settings(){
     </details>
     <div class="row"><button class="btn pri" id="s_save" onclick="saveSettings()">Speichern</button></div>
     <div class="acct">${accountBlock()}</div>
+    <button type="button" class="reviewcta fbcta" onclick="feedbackModal()"><b>Feedback senden</b><span>Fehler, Wunsch oder Lob – geht direkt an den Entwickler.</span></button>
     <details class="more"><summary>Daten: Backup & Löschen</summary>
     <div class="row" style="margin-top:8px"><button class="btn ghost" style="flex:1" onclick="exportBackup()">Backup speichern</button><button class="btn ghost" style="flex:1" onclick="$('#imp').click()">Backup laden</button></div>
     <input type="file" id="imp" accept=".json,application/json" hidden onchange="importBackup(this)">
@@ -3775,6 +3866,7 @@ function importBackup(inp){
 ------------------------------------------------------------------ */
 async function boot(){
   loadCal(); setInterval(loadCal, 30 * 60000);
+  setTimeout(() => whatsNew(), 1500);
   if (PRO){ const bar = document.createElement('div'); bar.className = 'demobar';
     bar.innerHTML = DEMO ? 'Demo mit Beispieldaten · deine echten Daten bleiben unberührt <a href="?demo=0">Beenden</a>'
       : 'Vorschau: Pro-Funktionen aktiv <a href="?demo=1">Mit Beispieldaten ansehen</a> <a href="?pro=0">Ausschalten</a>';

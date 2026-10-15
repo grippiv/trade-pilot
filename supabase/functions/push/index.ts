@@ -74,6 +74,25 @@ const TXT = {
         review: {title:'Your weekly review', body:'2 minutes: what worked this week? Pick one goal for the next.'},
         test: {title:'NoTilt', body:'Notifications are working ✓'} }
 };
+// Wirtschaftskalender (gleiche Datei wie in der App) – 10 Min. zwischengespeichert
+const CAL_URL = APP + 'data/calendar.json';
+let CAL: {at: number, groups: {ts: number, titles: string}[]} = {at: 0, groups: []};
+async function calGroups(){
+  if (Date.now() - CAL.at < 10 * 60000) return CAL.groups;
+  try {
+    const j = await fetch(CAL_URL + '?t=' + Math.floor(Date.now() / 600000)).then(r => r.json());
+    const ev = (j.events || []).filter((e: any) => e.cur === 'USD' && e.imp === 'High').map((e: any) => ({ts: Date.parse(e.t), title: String(e.title || '')}))
+      .filter((e: any) => isFinite(e.ts)).sort((a: any, b: any) => a.ts - b.ts);
+    const g: {ts: number, titles: string}[] = [];
+    for (const e of ev){ const l = g[g.length - 1]; if (l && l.ts === e.ts) l.titles += ' · ' + e.title; else g.push({ts: e.ts, titles: e.title}); }
+    CAL = {at: Date.now(), groups: g};
+  } catch (_) { CAL.at = Date.now() - 8 * 60000; }   // Fehler: in 2 Min. erneut versuchen
+  return CAL.groups;
+}
+const NEWS_TXT = {
+  de: (m: number, t: string) => ({title: `⚠ News in ${m} Min.`, body: `${t} – Trade vorher fertig? Stop steht?`}),
+  en: (m: number, t: string) => ({title: `⚠ News in ${m} min`, body: `${t} – Trade done before? Stop set?`})
+};
 function localNow(tz: string){
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short', hour12:false})
     .formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -103,12 +122,19 @@ Deno.serve(async (req) => {
   if (action === 'tick'){
     const { data: rows } = await sb.from('push_subs').select('*').limit(5000);
     let sent = 0;
+    /* Nächster wichtiger Termin in 20–31 Min.? (läuft jede Minute, einmal pro Termin und Gerät) */
+    const soon = (rows || []).some((r: any) => r.news === true) ? (await calGroups()).find(g => g.ts - Date.now() > 20 * 60000 && g.ts - Date.now() <= 31 * 60000) : null;
     for (const r of rows || []){
       const L = localNow(r.tz || 'Europe/Berlin'), lang = r.lang === 'en' ? 'en' : 'de';
       const tm = toMin(r.remind_time);
       if (tm >= 0 && (r.remind_days || []).includes(L.wd) && L.min >= tm && L.min < tm + 15 && r.last_daily !== L.date){
         await sb.from('push_subs').update({last_daily: L.date}).eq('id', r.id);
         if (await deliver(r, {...TXT[lang].daily(r.remind_time), url: APP + '?from=push', tag:'daily'}) === 201) sent++;
+      }
+      if (soon && r.news === true && r.last_news !== String(soon.ts)){
+        await sb.from('push_subs').update({last_news: String(soon.ts)}).eq('id', r.id);
+        const m = Math.round((soon.ts - Date.now()) / 60000), t = soon.titles.length > 110 ? soon.titles.slice(0, 107) + '…' : soon.titles;
+        if (await deliver(r, {...NEWS_TXT[lang](m, t), url: APP + '?from=news', tag: 'news'}) === 201) sent++;
       }
       if (r.review && L.wd === 7 && L.min >= 18*60 && L.min < 18*60 + 15 && r.last_review !== L.date){
         await sb.from('push_subs').update({last_review: L.date}).eq('id', r.id);
@@ -128,7 +154,8 @@ Deno.serve(async (req) => {
     const row = {user_id: user.id, endpoint: s.endpoint, p256dh: k.p256dh, auth: k.auth,
       remind_time: /^\d{2}:\d{2}$/.test(body.time || '') ? body.time : null, remind_days: days, review: body.review !== false,
       tz: String(body.tz || 'Europe/Berlin').slice(0, 64), lang: body.lang === 'en' ? 'en' : 'de'};
-    const { error } = await sb.from('push_subs').upsert(row, {onConflict: 'endpoint'});
+    let { error } = await sb.from('push_subs').upsert({...row, news: body.news !== false}, {onConflict: 'endpoint'});
+    if (error && /news/.test(error.message || '')) ({ error } = await sb.from('push_subs').upsert(row, {onConflict: 'endpoint'}));   // Spalte noch nicht angelegt
     return error ? json({error: error.message}, 500) : json({ok: true});
   }
   if (action === 'unsubscribe'){
