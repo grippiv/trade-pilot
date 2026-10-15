@@ -1,0 +1,28 @@
+# Holt stündlich den Wirtschaftskalender (Forex-Factory-Wochenfeed) und speichert ihn für die App.
+name: Wirtschaftskalender
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: calendar
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kalender holen
+        run: |
+          curl -fsS -m 30 -A "NoTilt-calendar/1.0 (+https://github.com/grippiv/trade-pilot)" \
+            https://nfs.faireconomy.media/ff_calendar_thisweek.json -o /tmp/ff.json
+          python3 .github/scripts/calendar.py /tmp/ff.json data/calendar.json
+      - name: Speichern, wenn sich etwas geändert hat
+        run: |
+          git config user.name "notilt-bot"
+          git config user.email "notilt-bot@users.noreply.github.com"
+          git add data/calendar.json
+          if git diff --cached --quiet; then echo "keine Änderung"; else git commit -m "Wirtschaftskalender aktualisiert" && git push; fi

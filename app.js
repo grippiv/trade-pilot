@@ -1278,6 +1278,30 @@ Object.assign(I18N_EN, {
   "Bei diesem Preis schließt die Börse deine Position zwangsweise. Er muss immer hinter deinem Stop liegen.": "At this price the exchange force-closes your position. It must always be beyond your stop.",
   "Wie tief ein Trade im Minus und wie hoch im Plus war. Laufen deine Gewinner kaum ins Minus, ist dein Stop zu weit. Waren viele Verlierer erst im Plus, lohnt sich Break-even.": "How deep a trade went into the red and how high into profit. If your winners barely go red, your stop is too wide. If many losers were in profit first, break-even pays off."
 });
+
+/* Wirtschaftskalender */
+Object.assign(I18N_EN, {
+  "Wirtschaftskalender": "Economic calendar",
+  "Woche ›": "Week ›",
+  "vorbei": "over",
+  "jetzt": "now",
+  "in # Min.": "in # min",
+  "in # Std.": "in # h",
+  "in # Std. # Min.": "in # h # min",
+  "Sperre aktiv": "Lock active",
+  "Heute keine wichtigen US-Termine.": "No major US events today.",
+  "● Wirtschaftskalender": "● Economic calendar",
+  "Wichtige US-Termine": "Major US events",
+  "Bei": "With",
+  "sperrt NoTilt neue Trades # Min. davor und danach. Zeiten in deiner Zeitzone.": "NoTilt blocks new trades # min before and after. Times in your time zone.",
+  "Prognose": "Forecast",
+  "vorher": "previous",
+  "Quelle: Forex Factory · keine Gewähr.": "Source: Forex Factory · no guarantee.",
+  "Gerade keine Termine geladen.": "No events loaded right now.",
+  "Laut Kalender heute:": "According to the calendar today:",
+  "Hohe Wirkung": "High impact",
+  "Mittlere Wirkung": "Medium impact"
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -2118,6 +2142,81 @@ function maeHtml(arr){
   return `<div class="maebox">${out}</div>`;
 }
 /* ==================================================================
+   Wirtschaftskalender (Vorschau, Pro): wichtige US-Termine von heute,
+   automatisch statt von Hand im Tages-Check – und die News-Sperre greift von selbst.
+   Daten: data/calendar.json, stündlich per GitHub Action aus dem Forex-Factory-Feed.
+   ================================================================== */
+const CAL_CUR = ['USD'];     /* Krypto reagiert vor allem auf US-Daten */
+let calData = LS.get('cal', null);
+function demoCal(){
+  /* d = Werktage ab heute (Wochenenden übersprungen) */
+  const now = Date.now(), at = (h, m = 0, d = 0) => { const x = new Date(); let n = Math.abs(d); while (n > 0){ x.setDate(x.getDate() + Math.sign(d)); if (x.getDay() % 6) n--; } x.setHours(h, m, 0, 0); return x.toISOString(); };
+  const soon = new Date(now + 95 * 60000); soon.setMinutes(30, 0, 0);
+  return {events: [
+    {t: soon.toISOString(), title: 'Core CPI m/m', cur: 'USD', imp: 'High', fc: '0.3%', pv: '0.2%'},
+    {t: soon.toISOString(), title: 'CPI y/y', cur: 'USD', imp: 'High', fc: '2.8%', pv: '2.9%'},
+    {t: (x => (x.setMinutes(0, 0, 0), x.toISOString()))(new Date(now + 5.5 * 3600e3)), title: 'FOMC Member Speaks', cur: 'USD', imp: 'Medium', fc: '', pv: ''},
+    {t: at(14, 30, 1), title: 'Unemployment Claims', cur: 'USD', imp: 'High', fc: '228K', pv: '231K'},
+    {t: at(16, 0, 1), title: 'ISM Services PMI', cur: 'USD', imp: 'Medium', fc: '51.8', pv: '52.1'},
+    {t: at(20, 0, 2), title: 'FOMC Statement', cur: 'USD', imp: 'High', fc: '', pv: ''},
+    {t: at(20, 30, 2), title: 'FOMC Press Conference', cur: 'USD', imp: 'High', fc: '', pv: ''},
+    {t: at(9, 0, -1), title: 'German ZEW Economic Sentiment', cur: 'EUR', imp: 'High', fc: '', pv: ''},
+  ]};
+}
+async function loadCal(){
+  if (!PRO) return;
+  if (DEMO){ calData = demoCal(); return; }
+  try {
+    const r = await fetch('data/calendar.json?t=' + Math.floor(Date.now() / 600000), {cache: 'no-cache'}); if (!r.ok) return;
+    const j = await r.json(); if (!j || !Array.isArray(j.events)) return;
+    const changed = JSON.stringify(j) !== JSON.stringify(calData); calData = j; LS.set('cal', j);
+    if (changed && curView === 'home' && !$('#modal.on')) { stopTimers(); home(); }
+  } catch (e) {}
+}
+const calEvents = () => ((calData && calData.events) || []).map(e => ({...e, ts: Date.parse(e.t)}))
+  .filter(e => isFinite(e.ts) && CAL_CUR.includes(e.cur) && (e.imp === 'High' || e.imp === 'Medium')).sort((a, b) => a.ts - b.ts);
+const hhmm = ts => new Date(ts).toLocaleTimeString(LOC(), {hour: '2-digit', minute: '2-digit'});
+const calToday = () => calEvents().filter(e => isToday(e.ts));
+const calHigh = () => calToday().filter(e => e.imp === 'High');
+const impDots = imp => `<span class="imp imp-${imp === 'High' ? 'h' : 'm'}" title="${imp === 'High' ? 'Hohe Wirkung' : 'Mittlere Wirkung'}"><i></i><i></i><i></i></span>`;
+/* Läuft gerade ein News-Fenster laut Kalender? */
+function calBlock(){
+  if (!PRO || !(cfg.newsWin > 0)) return null;
+  const now = Date.now(), w = cfg.newsWin * 60000;
+  return calHigh().find(e => now >= e.ts - w && now <= e.ts + w) || null;
+}
+function inTxt(ts){
+  const m = Math.round((ts - Date.now()) / 60000);
+  if (m < -1) return 'vorbei'; if (m <= 1) return 'jetzt';
+  return m < 60 ? `in ${m} Min.` : `in ${Math.floor(m / 60)} Std. ${m % 60 ? (m % 60) + ' Min.' : ''}`.trim();
+}
+/* Termine mit gleicher Uhrzeit zusammenfassen (CPI m/m + CPI y/y …) */
+function calGroups(list){
+  const g = []; list.forEach(e => { const last = g[g.length - 1]; if (last && last.ts === e.ts){ last.items.push(e); if (e.imp === 'High') last.imp = 'High'; } else g.push({ts: e.ts, imp: e.imp, items: [e]}); });
+  return g;
+}
+function calHomeHtml(){
+  if (!PRO) return '';
+  if (!calData) return '';
+  const g = calGroups(calToday()), now = Date.now(), blk = calBlock();
+  const rows = g.length ? g.map(x => { const past = x.ts < now - cfg.newsWin * 60000, live = blk && blk.ts === x.ts;
+    return `<div class="calrow ${past ? 'past' : ''} ${live ? 'live' : ''}"><b class="ct">${hhmm(x.ts)}</b>${impDots(x.imp)}<span class="cn">${x.items.map(e => esc(e.title)).join(' · ')}</span><em>${live ? 'Sperre aktiv' : past ? '' : inTxt(x.ts)}</em></div>`; }).join('')
+    : '<p class="calnone">Heute keine wichtigen US-Termine.</p>';
+  return `<button type="button" class="calcard ${blk ? 'warn' : ''}" onclick="calWeek()"><span class="calh"><span class="tn">Wirtschaftskalender</span><span class="cw">Woche ›</span></span>${rows}</button>`;
+}
+function calWeek(){
+  const ev = calEvents(), days = {};
+  ev.forEach(e => { const k = dayKey(e.ts); (days[k] = days[k] || []).push(e); });
+  const keys = Object.keys(days).sort();
+  modal(`<div class="tag">● Wirtschaftskalender</div><div class="q">Wichtige US-Termine</div>
+    <p class="hint small">Bei <span class="imp imp-h"><i></i><i></i><i></i></span> sperrt NoTilt neue Trades ${cfg.newsWin} Min. davor und danach. Zeiten in deiner Zeitzone.</p>
+    <div class="calweek">${keys.length ? keys.map(k => `<div class="cday ${k === today() ? 'today' : ''}"><div class="cdh">${new Date(k + 'T12:00:00').toLocaleDateString(LOC(), {weekday: 'long', day: 'numeric', month: 'short'})}</div>
+      ${days[k].map(e => `<div class="calrow ${e.ts < Date.now() ? 'past' : ''}"><b class="ct">${hhmm(e.ts)}</b>${impDots(e.imp)}<span class="cn">${esc(e.title)}</span><em>${e.fc ? `<span class="cfp">Prognose</span> ${esc(e.fc)}` : ''}${e.pv ? ` · <span class="cfp">vorher</span> ${esc(e.pv)}` : ''}</em></div>`).join('')}</div>`).join('')
+      : '<p class="calnone">Gerade keine Termine geladen.</p>'}</div>
+    <p class="hint small">Quelle: Forex Factory · keine Gewähr.</p>
+    <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
+}
+/* ==================================================================
    Trade-Details: Antippen eines Trades im Journal zeigt alles, was du
    vor und nach dem Trade eingetragen hast – Bearbeiten ist einen Tipp weiter.
    ================================================================== */
@@ -2392,6 +2491,7 @@ function home(){
     </div>
     </div><div class="hcol hr">
     ${tiltCard()}
+    ${calHomeHtml()}
     ${reviewDue() ? `<button class="reviewcta" onclick="weeklyReview()"><b>Wochenrückblick</b><span>2 Minuten – was hat funktioniert, was nicht? Ein Ziel für nächste Woche.</span></button>` : ''}
     ${S.get('weekGoal', null) ? `<p class="goal">${goalLine()}</p>` : ''}
     ${b && b.fokus && b.fokus.length ? `<p class="fokus">Fokus heute: ${b.fokus.map(c=>`<b>${esc(c)}</b>`).join(' · ')}</p>` : ''}
@@ -2415,6 +2515,7 @@ function start(){
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
   const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
+  const ce = calBlock(); if (ce) return stopView('news', `News um ${hhmm(ce.ts)} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`, `<div class="calhit">${impDots(ce.imp)}<span>${calGroups(calHigh()).find(g => g.ts === ce.ts).items.map(e => esc(e.title)).join(' · ')}</span></div>`);
   if (usOpenBlock()) return stopView('usopen', `US-Börse seit ${usOpenLocal()} Uhr offen. Die ersten ${cfg.usOpenBlock} Min.: kein Trade.`);
   const ti = tiltInfo();
   if (PRO && ti.level === 'hot' && !start._tilt) return modal(`<div class="tag" style="color:var(--red)">● Tilt-Meter: hoch (${ti.score})</div>
@@ -2448,6 +2549,8 @@ function dayCheck(thenStart, keep){
   stopTimers(); curView = 'day'; progress(null);
   const b = biasToday() || {};
   st.day = {struktur: b.struktur||'', news: b.news||'', newsTime: b.newsTime||'', b: b.b||'', thenStart: !!thenStart};
+  const ch = PRO ? calGroups(calHigh()) : [];
+  if (ch.length && !b.news){ const nx = ch.find(g => g.ts > Date.now() - cfg.newsWin * 60000) || ch[0]; st.day.news = 'ja'; st.day.newsTime = new Date(nx.ts).toTimeString().slice(0, 5); }
   render(`<div class="card">
     ${backBtn('ret()')}<div class="tag">◷ Tages-Check · einmal pro Tag</div>
     <div class="q">Wie ist die Lage heute?</div>
@@ -2456,7 +2559,8 @@ function dayCheck(thenStart, keep){
       <div class="seg" id="d_str"><button data-v="bull">Bullisch</button><button data-v="bear">Bärisch</button><button data-v="unklar">Unklar</button></div></div>
     <div class="f"><label>Wichtige News heute (3 Sterne)?</label>
       <div class="seg" id="d_news"><button data-v="nein">Keine</button><button data-v="ja">Ja, um …</button></div>
-      <input id="d_time" type="time" value="${esc(st.day.newsTime)}" ${st.day.news==='ja'?'':'hidden'} aria-label="Uhrzeit der News"></div>
+      <input id="d_time" type="time" value="${esc(st.day.newsTime)}" ${st.day.news==='ja'?'':'hidden'} aria-label="Uhrzeit der News">
+      ${ch.length ? `<div class="calday"><span class="cdl">Laut Kalender heute:</span>${ch.map(g => `<span class="calchip">${impDots(g.imp)}<b>${hhmm(g.ts)}</b> ${g.items.map(e => esc(e.title)).join(' · ')}</span>`).join('')}</div>` : ''}</div>
     <div class="f"><label data-term="Bias">Dein Bias heute</label>
       <div class="seg" id="d_bias"><button data-v="long" class="lg">Long</button><button data-v="short" class="sh">Short</button><button data-v="neutral">Neutral</button></div></div>
     <div class="f"><label for="d_fokus">Fokus-Coins mit Alert (optional, mit Komma)</label>
@@ -2811,7 +2915,7 @@ function cooldownView(R, kept){
 /* Zurück nur bei Stopps, die auf eine Eingabe zurückgehen. Gefühls-Stopps (FOMO, Gier, Revenge, Langeweile)
    bleiben ohne Rückweg – sonst wählt man einfach „ruhig“ und die Unterbrechung wirkt nicht mehr. */
 const STOP_BACK = ['setup', 'gegenbias', 'crv', 'liq'];
-function stopView(k, text){
+function stopView(k, text, extra){
   const canBack = curView === 'flow' && STOP_BACK.includes(k);
   if (canBack) enter(); else if (curView !== 'day') retStack = [];
   stopTimers(); curView = 'stop'; progress(null);
@@ -2823,7 +2927,7 @@ function stopView(k, text){
     ${canBack ? backBtn('ret()') : ''}<svg class="xicon" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 18 L46 46"/><path d="M46 18 L18 46" style="animation-delay:.35s"/></svg>
     <div class="tag">■ Kein Trade</div>
     <div class="q">${esc(s.t)}</div>
-    ${text || s.x ? `<p class="hint">${esc(text || s.x)}</p>` : ''}
+    ${text || s.x ? `<p class="hint">${esc(text || s.x)}</p>` : ''}${extra || ''}
     ${s.w ? `<details class="why"><summary>Warum?</summary><p>${esc(s.w)}</p></details>` : ''}
     ${s.cool?`<p class="hint" style="margin-top:14px">${cfg.cooldownLoss} Minuten Pause gestartet.</p>`:''}
     <div class="row"><button class="btn pri" onclick="go('home')">Verstanden</button></div>
@@ -3583,6 +3687,7 @@ function importBackup(inp){
    Start der App
 ------------------------------------------------------------------ */
 async function boot(){
+  loadCal(); setInterval(loadCal, 30 * 60000);
   if (PRO){ const bar = document.createElement('div'); bar.className = 'demobar';
     bar.innerHTML = DEMO ? 'Demo mit Beispieldaten · deine echten Daten bleiben unberührt <a href="?demo=0">Beenden</a>'
       : 'Vorschau: Pro-Funktionen aktiv <a href="?demo=1">Mit Beispieldaten ansehen</a> <a href="?pro=0">Ausschalten</a>';
