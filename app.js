@@ -1385,6 +1385,32 @@ Object.assign(I18N_EN, {
   'Wichtige News': 'Major news',
   '# Min. vorher': '# min before'
 });
+/* Benachrichtigungen (eigener Bereich) */
+Object.assign(I18N_EN, {
+  'Benachrichtigungen': 'Notifications',
+  'Tages-Check · News · Wochenrückblick': 'Daily check · News · Weekly review',
+  '🔔 Benachrichtigungen': '🔔 Notifications',
+  'Woran soll NoTilt dich erinnern?': 'What should NoTilt remind you of?',
+  'Benachrichtigungen brauchen ein Konto.': 'Notifications need an account.',
+  'Melde dich an, um Benachrichtigungen zu nutzen.': 'Sign in to use notifications.',
+  'Am iPhone gehen Benachrichtigungen nur, wenn NoTilt auf dem Home-Bildschirm ist.': 'On iPhone, notifications only work when NoTilt is on your home screen.',
+  "So geht's": 'How to',
+  'Dieser Browser unterstützt keine Benachrichtigungen.': "This browser doesn't support notifications.",
+  'Benachrichtigungen sind für NoTilt blockiert. Erlaube sie in den Einstellungen deines Geräts und öffne die App neu.': 'Notifications are blocked for NoTilt. Allow them in your device settings and reopen the app.',
+  'Auf diesem Gerät': 'On this device',
+  'Push-Nachrichten sind an.': 'Push notifications are on.',
+  'Push-Nachrichten sind aus.': 'Push notifications are off.',
+  'Erinnert dich an deine Routine, bevor du an die Charts gehst.': 'Reminds you of your routine before you open the charts.',
+  '# Min. vor wichtigen US-Terminen.': '# min before major US events.',
+  'Sonntag, # Uhr.': 'Sunday, #:00.',
+  'Testnachricht senden': 'Send test notification',
+  'Gilt nur für dieses Gerät. Auf Handy und Computer jeweils einzeln einschalten.': 'Applies to this device only. Turn it on separately on your phone and computer.',
+  'Gespeichert ✓': 'Saved ✓',
+  'Speichern hat nicht geklappt. Prüf deine Verbindung.': "Saving didn't work. Check your connection.",
+  'An ✓ Eine Testnachricht ist unterwegs.': "On ✓ A test notification is on its way.",
+  'An ✓': 'On ✓',
+  'Kein aktives Gerät gefunden. Schalte Benachrichtigungen hier aus und wieder an.': 'No active device found. Turn notifications off and on again here.'
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -1581,74 +1607,117 @@ async function pushCall(body){
   const r = await fetch(PUSH_URL, {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok}, body: JSON.stringify(body)});
   return r.json().catch(() => ({}));
 }
-function reminderCfg(){ return Object.assign({time: '15:00', days: [1,2,3,4,5], review: true, news: true, on: false}, cfg.reminder || {}); }
-function reminderHtml(){
-  const r = reminderCfg();
-  const blocked = !HAS_BACKEND ? 'Erinnerungen brauchen ein Konto.' : !Sync.ok ? 'Melde dich an, um Erinnerungen zu nutzen.'
-    : isIOS() && !isStandalone() ? 'Am iPhone: erst über Teilen → „Zum Home-Bildschirm“ installieren, dann hier aktivieren.'
-    : !pushSupported() ? 'Dieser Browser unterstützt keine Push-Nachrichten.' : '';
-  return `<div class="lbl3">Erinnerung</div>
-    <p class="hint small">Feste Zeit, fester Auslöser: <b>Wenn</b> es ${esc(r.time)} Uhr ist und ich an die Charts gehe, <b>dann</b> mache ich zuerst den Tages-Check.</p>
-    <div class="grid2"><div class="f"><label for="rm_time">Uhrzeit</label><input id="rm_time" type="time" value="${esc(r.time)}"></div>
-      <div class="f"><label>Wochenrückblick</label>${chipRow('rm_rev', [['an','So 18 Uhr'],['aus','Aus']], r.review ? 'an' : 'aus', 'small')}</div></div>
-    ${CAL ? `<div class="f"><label>Wichtige News</label>${chipRow('rm_news', [['an','30 Min. vorher'],['aus','Aus']], r.news ? 'an' : 'aus', 'small')}</div>` : ''}
-    <div class="f"><label>Tage</label><div class="chips small" id="rm_days">${WEEKDAYS.map(([d, l]) => `<button type="button" data-v="${d}" class="${r.days.includes(d) ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-    ${blocked ? `<p class="hint small warnc">${blocked}</p>` : `<div class="row" style="margin-top:0"><button class="btn ${r.on ? 'ghost' : 'pri'}" style="flex:1" id="rm_btn" onclick="pushToggle()">${r.on ? 'Erinnerung aktualisieren' : 'Push-Erinnerung aktivieren'}</button>
-      ${r.on ? `<button class="btn ghost" style="flex:1" onclick="pushTest(this)">Test senden</button>` : ''}</div>
-      ${r.on ? `<button class="linkbtn" onclick="pushOff()">Erinnerung ausschalten</button>` : ''}`}
-    <p class="msg" id="rm_msg"></p>`;
+function reminderCfg(){ return Object.assign({time: '15:00', days: [1,2,3,4,5], daily: true, review: true, news: true, on: false}, cfg.reminder || {}); }
+/* Was der Server bekommt: Tages-Check aus = keine Uhrzeit */
+const pushBody = r => ({time: r.daily ? r.time : '', days: r.days, review: !!r.review, news: r.news !== false,
+  tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG});
+/* Warum Benachrichtigungen hier nicht gehen (leer = alles ok) */
+const notifBlocked = () => !HAS_BACKEND ? 'demo' : !Sync.ok ? 'login' : isIOS() && !isStandalone() ? 'ios'
+  : !pushSupported() ? 'unsupported' : Notification.permission === 'denied' ? 'denied' : '';
+const notifOn = () => reminderCfg().on && !notifBlocked();
+
+/* Eintrag in den Einstellungen */
+function notifRowHtml(){
+  return `<button type="button" class="notifbtn" onclick="notifView()"><span class="nbt"><b>Benachrichtigungen</b><small>Tages-Check · News · Wochenrückblick</small></span><span class="nst ${notifOn() ? 'on' : ''}">${notifOn() ? 'An' : 'Aus'}</span><em>›</em></button>`;
 }
-function bindReminder(){ bindChips('rm_days', null, true); bindChips('rm_rev'); bindChips('rm_news'); }
+/* Eigener Bereich: ein Hauptschalter fürs Gerät, darunter ein Schalter pro Nachricht – Änderungen speichern sich selbst */
+let notifMsg = null, notifT = null;
+function notifView(){
+  if ($('#s_max')) saveSettings(true);
+  stopTimers(); closeModal(); curView = 'settings'; progress(null);
+  const r = reminderCfg(), bl = notifBlocked(), on = notifOn();
+  const sw = (id, val, dis) => `<button type="button" class="sw ${val ? 'on' : ''}" id="${id}" role="switch" aria-checked="${!!val}" aria-labelledby="${id}_l" ${dis ? 'disabled' : ''} onclick="notifSet('${id}')"><i></i></button>`;
+  const BL = {
+    demo: ['Benachrichtigungen brauchen ein Konto.', ''],
+    login: ['Melde dich an, um Benachrichtigungen zu nutzen.', `<button class="btn pri" onclick="accountView('login')">Anmelden</button>`],
+    ios: ['Am iPhone gehen Benachrichtigungen nur, wenn NoTilt auf dem Home-Bildschirm ist.', `<button class="btn pri" onclick="installHelp()">So geht's</button>`],
+    unsupported: ['Dieser Browser unterstützt keine Benachrichtigungen.', ''],
+    denied: ['Benachrichtigungen sind für NoTilt blockiert. Erlaube sie in den Einstellungen deines Geräts und öffne die App neu.', '']};
+  render(`<div class="card">
+    ${backBtn('settings()')}<div class="tag">🔔 Benachrichtigungen</div>
+    <div class="q">Woran soll NoTilt dich erinnern?</div>
+    ${bl ? `<div class="nblock"><p>${BL[bl][0]}</p>${BL[bl][1]}</div>` : ''}
+    <div class="nrow master"><div class="nt"><b id="n_on_l">Auf diesem Gerät</b><span>${on ? 'Push-Nachrichten sind an.' : 'Push-Nachrichten sind aus.'}</span></div>${sw('n_on', on, !!bl)}</div>
+    <div class="nlist ${on ? '' : 'off'}">
+      <div class="nrow"><div class="nt"><b id="n_daily_l">Tages-Check</b><span>Erinnert dich an deine Routine, bevor du an die Charts gehst.</span></div>${sw('n_daily', r.daily, !on)}</div>
+      ${r.daily ? `<div class="nsub">
+        <div class="f"><label for="rm_time">Uhrzeit</label><input id="rm_time" type="time" value="${esc(r.time)}" ${on ? '' : 'disabled'}></div>
+        <div class="f"><label>Tage</label><div class="chips small" id="rm_days">${WEEKDAYS.map(([d, l]) => `<button type="button" data-v="${d}" class="${r.days.includes(d) ? 'on' : ''}" ${on ? '' : 'disabled'}>${l}</button>`).join('')}</div></div></div>` : ''}
+      ${CAL ? `<div class="nrow"><div class="nt"><b id="n_news_l">Wichtige News</b><span>30 Min. vor wichtigen US-Terminen.</span></div>${sw('n_news', r.news !== false, !on)}</div>` : ''}
+      <div class="nrow"><div class="nt"><b id="n_review_l">Wochenrückblick</b><span>Sonntag, 18 Uhr.</span></div>${sw('n_review', r.review, !on)}</div>
+    </div>
+    <p class="msg ${notifMsg ? (notifMsg[1] ? 'good' : 'bad') : ''}" id="n_msg">${notifMsg ? esc(notifMsg[0]) : ''}</p>
+    ${on ? `<button class="linkbtn" onclick="pushTest(this)">Testnachricht senden</button>` : ''}
+    <p class="hint small">Gilt nur für dieses Gerät. Auf Handy und Computer jeweils einzeln einschalten.</p>
+  </div>`, 'notif');
+  notifMsg = null;
+  later(() => { bindChips('rm_days', () => notifChanged(), true); const t = $('#rm_time'); if (t) t.onchange = () => notifChanged(); });
+}
+const notifSay = (t, ok) => { const m = $('#n_msg'); if (m){ m.textContent = t; m.className = 'msg ' + (ok ? 'good' : 'bad'); } };
+function notifSet(id){
+  if (id === 'n_on') return notifOn() ? pushOff() : pushEnable();
+  const k = {n_daily: 'daily', n_news: 'news', n_review: 'review'}[id], r = readReminder();
+  r[k] = !(k === 'news' ? r.news !== false : r[k]); cfg.reminder = r; saveCfg();
+  notifView(); notifChanged(true);
+}
 function readReminder(){
   const r = reminderCfg(), t = $('#rm_time');
   if (!t) return r;
   const days = $$('#rm_days button.on').map(b => +b.dataset.v);
-  return Object.assign(r, {time: t.value || '15:00', days: days.length ? days : [1,2,3,4,5], review: (chipVal('rm_rev') || 'an') === 'an', news: (chipVal('rm_news') || 'an') === 'an'});
+  return Object.assign(r, {time: t.value || '15:00', days: days.length ? days : [1,2,3,4,5]});
 }
-async function pushToggle(){
-  const msg = $('#rm_msg'), btn = $('#rm_btn'); const r = readReminder();
-  const say = (t, ok) => { msg.textContent = t; msg.className = 'msg ' + (ok ? 'good' : 'bad'); };
-  btn.disabled = true;
+function notifChanged(skipRead){
+  if (!skipRead){ cfg.reminder = readReminder(); saveCfg(); }
+  clearTimeout(notifT); notifT = setTimeout(pushSave, 700);
+}
+async function pushSave(){
+  if (!notifOn()) return;
+  try {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (!sub) throw new Error('Kein Abo auf diesem Gerät');
+    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), ...pushBody(reminderCfg())});
+    if (!res.ok) throw new Error(res.error || 'Server');
+    LS.set('pushLang', LANG); notifSay('Gespeichert ✓', true);
+  } catch (e){ notifSay('Speichern hat nicht geklappt. Prüf deine Verbindung.'); }
+}
+async function pushEnable(){
+  const b = $('#n_on'); if (b) b.disabled = true;
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted'){ btn.disabled = false; return say('Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für NoTilt.'); }
+    if (perm !== 'granted'){ notifMsg = ['Benachrichtigungen sind blockiert. Erlaube sie in den Einstellungen deines Geräts für NoTilt.', false]; return notifView(); }
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if (!sub){
       const { pub } = await fetch(PUSH_URL).then(x => x.json());
       sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64ToUint8(pub)});
     }
-    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review, news: r.news !== false,
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG});
+    const r = reminderCfg(), res = await pushCall({action: 'subscribe', sub: sub.toJSON(), ...pushBody(r)});
     if (!res.ok) throw new Error(res.error || 'Server');
     cfg.reminder = Object.assign(r, {on: true}); saveCfg(); LS.set('pushLang', LANG);
     const t = await pushCall({action: 'test'}).catch(() => ({}));
-    const sent = t.results && t.results.some(x => x >= 200 && x < 300);
-    say(sent ? 'Aktiv ✓ Eine Testnachricht ist unterwegs – sie kommt in ein paar Sekunden.' : 'Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.', true);
-    setTimeout(settings, 3000);
-  } catch (e){ btn.disabled = false; say('Das hat nicht geklappt: ' + (e && e.message || e)); }
+    notifMsg = [t.results && t.results.some(x => x >= 200 && x < 300) ? 'An ✓ Eine Testnachricht ist unterwegs.' : 'An ✓', true];
+    notifView();
+  } catch (e){ notifMsg = ['Das hat nicht geklappt: ' + (e && e.message || e), false]; notifView(); }
 }
 /* Sprache der Push-Nachrichten nachziehen, wenn die App-Sprache gewechselt wurde */
 async function pushSyncLang(){
   try {
-    const r = reminderCfg();
-    if (!HAS_BACKEND || !Sync.ok || !r.on || !pushSupported() || Notification.permission !== 'granted' || LS.get('pushLang', '') === LANG) return;
+    if (!notifOn() || LS.get('pushLang', '') === LANG) return;
     const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (!sub) return;
-    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review, news: r.news !== false,
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG});
+    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), ...pushBody(reminderCfg())});
     if (res.ok) LS.set('pushLang', LANG);
   } catch (e) {}
 }
 async function pushTest(btn){
   btn.disabled = true; const res = await pushCall({action: 'test'}).catch(() => ({}));
   const ok = res.results && res.results.some(s => s >= 200 && s < 300);
-  const m = $('#rm_msg'); m.textContent = ok ? 'Gesendet – kommt gleich an.' : 'Kein aktives Gerät gefunden. Aktiviere die Erinnerung auf diesem Gerät erneut.'; m.className = 'msg ' + (ok ? 'good' : 'bad');
+  notifSay(ok ? 'Gesendet – kommt gleich an.' : 'Kein aktives Gerät gefunden. Schalte Benachrichtigungen hier aus und wieder an.', ok);
   btn.disabled = false;
 }
 async function pushOff(){
   try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
     if (sub){ await pushCall({action: 'unsubscribe', endpoint: sub.endpoint}); await sub.unsubscribe(); } } catch (e){}
-  cfg.reminder = Object.assign(reminderCfg(), {on: false}); saveCfg(); settings();
+  cfg.reminder = Object.assign(reminderCfg(), {on: false}); saveCfg(); notifView();
 }
 
 /* ---------- Screenshots (Supabase Storage, privat) ---------- */
@@ -3301,7 +3370,7 @@ function settings(){
     <div class="q">Deine Regeln</div>
     <p class="hint">Einmal in Ruhe festlegen, nicht mitten im Trade.</p>
     ${stratListHtml(true)}
-    ${reminderHtml()}
+    <div class="f">${notifRowHtml()}</div>
     <div class="lbl3">Deine Grenzen</div>
     ${(() => { const fld = f => `<div class="f"><label for="${f[0]}">${f[1]}</label><input id="${f[0]}" inputmode="decimal" value="${f[2]}"></div>`, basic = ['s_konto','s_risk','s_max','s_loss','s_week','s_dd'];
       return `<div class="grid2">${F.filter(f => basic.includes(f[0])).map(fld).join('')}</div>
@@ -3331,7 +3400,7 @@ function settings(){
   later(() => {
     bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); });
-    bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindChips('s_newsm', v => { cfg.newsMode = v; saveCfg(); }); bindReminder(); });
+    bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindChips('s_newsm', v => { cfg.newsMode = v; saveCfg(); }); });
 }
 function saveSettings(quiet){
   if (!$('#s_max')) return;

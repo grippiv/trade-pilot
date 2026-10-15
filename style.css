@@ -646,3 +646,30 @@ details.more summary{padding:10px 0}
   .kpi .l{letter-spacing:.2px}
   .jstats .kpi .v{font-size:15px}
 }
+
+/* Benachrichtigungen */
+.notifbtn{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#171b24;color:var(--txt);font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.notifbtn em{font-style:normal;color:var(--mut);font-size:20px;line-height:1}
+.notifbtn .nbt{display:grid;gap:2px;flex:1;min-width:0}
+.notifbtn .nbt small{font-weight:400;font-size:13px;color:var(--mut)}
+.nst{font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.nst.on{color:var(--green);border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.08)}
+.nblock{border:1px solid rgba(245,197,66,.4);background:rgba(245,197,66,.07);border-radius:12px;padding:12px 14px;margin:6px 0 14px;display:grid;gap:10px}
+.nblock p{margin:0;font-size:14px}
+.nblock .btn{justify-self:start}
+.nrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.nrow.master{border-top:0;padding-top:4px}
+.nt{display:grid;gap:2px;min-width:0}
+.nt b{font-size:15px}
+.nt span{font-size:13.5px;color:var(--mut)}
+.nlist{border-bottom:1px solid var(--line);margin-bottom:6px}
+.nlist.off .nt,.nlist.off .nsub{opacity:.45}
+.nsub{padding:0 0 12px}
+.nsub .f{margin-bottom:10px}
+.sw{flex:0 0 auto;width:52px;height:32px;border-radius:999px;background:#2a2f3a;border:1px solid var(--line);position:relative;cursor:pointer;transition:background .2s}
+.sw i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw.on{background:var(--gold);border-color:var(--gold)}
+.sw.on i{transform:translateX(20px);background:#0a0c10}
+.sw:disabled{opacity:.4;cursor:default}
+.sw:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.sw,.sw i{transition:none}}
