@@ -10,6 +10,8 @@ const LSP = DEMO ? 'tpdemo_' : 'tp_';
 const PRO = DEMO || (() => { try { const q = location.search;
   if (/[?&]pro=1/.test(q)) localStorage.setItem('tp_pro', '1'); if (/[?&]pro=0/.test(q)) localStorage.removeItem('tp_pro');
   return localStorage.getItem('tp_pro') === '1'; } catch(e){ return false; } })();
+/* Wirtschaftskalender + News-Warnung: für alle freigeschaltet (aus der Pro-Vorschau übernommen) */
+const CAL = true;
 const LS = {
   get(k, d){ try{ const v = localStorage.getItem(LSP+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(LSP+k, JSON.stringify(v)); }catch(e){} }
@@ -2192,7 +2194,7 @@ function maeHtml(arr){
   return `<div class="maebox">${out}</div>`;
 }
 /* ==================================================================
-   Wirtschaftskalender (Vorschau, Pro): wichtige US-Termine von heute,
+   Wirtschaftskalender (für alle): wichtige US-Termine von heute,
    automatisch statt von Hand im Tages-Check – und die News-Sperre greift von selbst.
    Daten: data/calendar.json, stündlich per GitHub Action aus dem Forex-Factory-Feed.
    ================================================================== */
@@ -2214,7 +2216,7 @@ function demoCal(){
   ]};
 }
 async function loadCal(){
-  if (!PRO) return;
+  if (!CAL) return;
   if (DEMO){ calData = demoCal(); return; }
   try {
     const r = await fetch('data/calendar.json?t=' + Math.floor(Date.now() / 600000), {cache: 'no-cache'}); if (!r.ok) return;
@@ -2234,13 +2236,13 @@ const isFed = e => /FOMC|Federal Funds|Fed Chair|Powell|Warsh|Monetary Policy/i.
 const calWin = e => isFed(e) ? {pre: 60, post: 90} : {pre: 15, post: 45};
 /* Läuft gerade ein News-Fenster laut Kalender? */
 function calBlock(){
-  if (!PRO) return null;
+  if (!CAL) return null;
   const now = Date.now();
   return calHigh().find(e => now >= e.ts - calWin(e).pre * 60000 && now <= e.ts + calWin(e).post * 60000) || null;
 }
 /* Vorsicht-Phase: wichtiger Termin in den nächsten 3 Stunden (noch keine Warnung beim Start) */
 function calSoon(min = 180){
-  if (!PRO) return null; const now = Date.now();
+  if (!CAL) return null; const now = Date.now();
   return calHigh().find(e => now < e.ts - calWin(e).pre * 60000 && e.ts - now <= min * 60000) || null;
 }
 const calTitles = ts => calGroups(calHigh()).find(g => g.ts === ts).items.map(e => esc(e.title)).join(' · ');
@@ -2259,7 +2261,7 @@ function newsWarn(e){
 }
 /* Offener Trade und ein Termin naht */
 function calTradeHtml(){
-  if (!PRO) return ''; const now = Date.now();
+  if (!CAL) return ''; const now = Date.now();
   const e = calHigh().find(x => x.ts - now <= 30 * 60000 && x.ts + calWin(x).post * 60000 > now); if (!e) return '';
   return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>${inTxt(e.ts) === 'vorbei' ? 'jetzt' : inTxt(e.ts)}</span> – <span>Stop steht?</span></p>`;
 }
@@ -2274,7 +2276,7 @@ function calGroups(list){
   return g;
 }
 function calHomeHtml(){
-  if (!PRO) return '';
+  if (!CAL) return '';
   if (!calData) return '';
   const g = calGroups(calToday()), now = Date.now(), blk = calBlock();
   const rows = g.length ? g.map(x => { const past = x.ts < now - calWin(x.items[0]).post * 60000, live = blk && blk.ts === x.ts;
@@ -2593,7 +2595,7 @@ function start(){
   const b = biasToday();
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
-  const nb = PRO && calEvents().length ? null : newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
+  const nb = CAL && calEvents().length ? null : newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
   const ce = calBlock();
   if (ce && cfg.newsMode === 'block') return stopView('news', `News um ${hhmm(ce.ts)} Uhr – kein Trade.`, `<div class="calhit">${impDots(ce.imp)}<span>${calTitles(ce.ts)}</span></div>`);
   if (ce && String(start._news) !== String(ce.ts)) return newsWarn(ce);
@@ -2631,7 +2633,7 @@ function dayCheck(thenStart, keep){
   stopTimers(); curView = 'day'; progress(null);
   const b = biasToday() || {};
   st.day = {struktur: b.struktur||'', news: b.news||'', newsTime: b.newsTime||'', b: b.b||'', thenStart: !!thenStart};
-  const ch = PRO ? calGroups(calHigh()) : [];
+  const ch = CAL ? calGroups(calHigh()) : [];
   if (ch.length && !b.news){ const nx = ch.find(g => g.ts > Date.now() - cfg.newsWin * 60000) || ch[0]; st.day.news = 'ja'; st.day.newsTime = new Date(nx.ts).toTimeString().slice(0, 5); }
   render(`<div class="card">
     ${backBtn('ret()')}<div class="tag">◷ Tages-Check · einmal pro Tag</div>
@@ -3204,7 +3206,7 @@ function settings(){
       return `<div class="grid2">${F.filter(f => basic.includes(f[0])).map(fld).join('')}</div>
       ${PRO ? '<p class="hint small" style="margin:-4px 0 10px">Wochen-Limit und Drawdown-Schutz: 0 = aus.</p>' : ''}
       <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
-    ${PRO ? `<div class="f tog"><label>Wichtige News-Termine</label>${chipRow('s_newsm', [['warn','Warnen'],['block','Sperren']], cfg.newsMode === 'block' ? 'block' : 'warn', 'small')}
+    ${CAL ? `<div class="f tog"><label>Wichtige News-Termine</label>${chipRow('s_newsm', [['warn','Warnen'],['block','Sperren']], cfg.newsMode === 'block' ? 'block' : 'warn', 'small')}
       <p class="hint small" style="margin:6px 0 0">Warnen: Trade mit ½ Risiko möglich. Sperren: kein Trade.</p></div>` : ''}
     <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
       <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
