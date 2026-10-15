@@ -66,13 +66,26 @@ async function vapid(){
   const again = await sb.from('push_keys').select('pub, priv_jwk').eq('id', 1).single();
   VAPID = {pub: again.data!.pub, jwk: again.data!.priv_jwk}; return VAPID;
 }
+// Texte in allen App-Sprachen (unbekannte Sprache → Englisch)
+const T10: Record<string, {daily: [string, string], review: [string, string], test: string, news: [string, string]}> = {
+  de: {daily: ['Zeit für deinen Tages-Check', '{t} – Wenn du gleich an die Charts gehst, dann zuerst NoTilt öffnen.'], review: ['Dein Wochenrückblick', '2 Minuten: Was hat diese Woche funktioniert? Wähl ein Ziel für die nächste.'], test: 'Benachrichtigungen funktionieren ✓', news: ['⚠ News in {m} Min.', '{t} – Trade vorher fertig? Stop steht?']},
+  en: {daily: ['Time for your daily check', '{t} – When you open the charts, open NoTilt first.'], review: ['Your weekly review', '2 minutes: what worked this week? Pick one goal for the next.'], test: 'Notifications are working ✓', news: ['⚠ News in {m} min', '{t} – Trade done before? Stop set?']},
+  es: {daily: ['Hora de tu check diario', '{t} – Antes de abrir los gráficos, abre primero NoTilt.'], review: ['Tu repaso semanal', '2 minutos: ¿qué funcionó esta semana? Elige un objetivo para la próxima.'], test: 'Las notificaciones funcionan ✓', news: ['⚠ Noticias en {m} min', '{t} – ¿Trade cerrado antes? ¿Stop puesto?']},
+  pt: {daily: ['Hora do seu check diário', '{t} – Antes de abrir os gráficos, abra o NoTilt primeiro.'], review: ['Sua revisão semanal', '2 minutos: o que funcionou nesta semana? Escolha uma meta para a próxima.'], test: 'As notificações estão funcionando ✓', news: ['⚠ Notícia em {m} min', '{t} – Trade fechado antes? Stop definido?']},
+  fr: {daily: ["C'est l'heure de ton check du jour", "{t} – Avant d'ouvrir les graphiques, ouvre d'abord NoTilt."], review: ['Ton bilan de la semaine', "2 minutes : qu'est-ce qui a marché cette semaine ? Choisis un objectif pour la suivante."], test: 'Les notifications fonctionnent ✓', news: ['⚠ News dans {m} min', '{t} – Trade fini avant ? Stop en place ?']},
+  tr: {daily: ['Günlük kontrol zamanı', "{t} – Grafikleri açmadan önce NoTilt'i aç."], review: ['Haftalık değerlendirmen', '2 dakika: Bu hafta ne işe yaradı? Gelecek hafta için bir hedef seç.'], test: 'Bildirimler çalışıyor ✓', news: ['⚠ Haber {m} dk sonra', '{t} – Trade öncesinde bitti mi? Stop yerinde mi?']},
+  ru: {daily: ['Время для дневной проверки', '{t} – Прежде чем открыть графики, сначала открой NoTilt.'], review: ['Твой обзор недели', '2 минуты: что сработало на этой неделе? Выбери цель на следующую.'], test: 'Уведомления работают ✓', news: ['⚠ Новости через {m} мин', '{t} – Сделка закрыта до этого? Стоп стоит?']},
+  zh: {daily: ['该做每日检查了', '{t} —— 打开图表之前,先打开 NoTilt。'], review: ['你的每周回顾', '2 分钟:这周什么有效?为下周定一个目标。'], test: '通知已正常工作 ✓', news: ['⚠ 新闻 {m} 分钟后', '{t} —— 交易会在之前结束吗?止损设好了吗?']},
+  ja: {daily: ['デイリーチェックの時間です', '{t} – チャートを開く前に、まずNoTiltを開こう。'], review: ['週間レビュー', '2分で:今週うまくいったことは?来週の目標をひとつ決めよう。'], test: '通知は正常に動作しています ✓', news: ['⚠ ニュースまで {m} 分', '{t} – その前にトレードを終える?ストップは置いた?']},
+  ko: {daily: ['데일리 체크 시간이에요', '{t} – 차트를 열기 전에 먼저 NoTilt를 여세요.'], review: ['주간 리뷰', '2분: 이번 주에 무엇이 효과적이었나요? 다음 주 목표를 하나 정하세요.'], test: '알림이 정상 작동합니다 ✓', news: ['⚠ 뉴스까지 {m} 분', '{t} – 그 전에 트레이드 끝나? 손절 설정했어?']}
+};
+const langOf = (l: unknown) => (typeof l === 'string' && T10[l]) ? l : 'en';
+const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w)\}/g, (_, k) => String(v[k] ?? ''));
 const TXT = {
-  de: { daily: (t: string) => ({title:'Zeit für deinen Tages-Check', body:`${t} – Wenn du gleich an die Charts gehst, dann zuerst NoTilt öffnen.`}),
-        review: {title:'Dein Wochenrückblick', body:'2 Minuten: Was hat diese Woche funktioniert? Wähl ein Ziel für die nächste.'},
-        test: {title:'NoTilt', body:'Benachrichtigungen funktionieren ✓'} },
-  en: { daily: (t: string) => ({title:'Time for your daily check', body:`${t} – When you open the charts, open NoTilt first.`}),
-        review: {title:'Your weekly review', body:'2 minutes: what worked this week? Pick one goal for the next.'},
-        test: {title:'NoTilt', body:'Notifications are working ✓'} }
+  daily: (l: string, t: string) => ({title: T10[l].daily[0], body: fill(T10[l].daily[1], {t})}),
+  review: (l: string) => ({title: T10[l].review[0], body: T10[l].review[1]}),
+  test: (l: string) => ({title: 'NoTilt', body: T10[l].test}),
+  news: (l: string, m: number, t: string) => ({title: fill(T10[l].news[0], {m}), body: fill(T10[l].news[1], {t})})
 };
 // Wirtschaftskalender (gleiche Datei wie in der App) – 10 Min. zwischengespeichert
 const CAL_URL = APP + 'data/calendar.json';
@@ -89,10 +102,7 @@ async function calGroups(){
   } catch (_) { CAL.at = Date.now() - 8 * 60000; }   // Fehler: in 2 Min. erneut versuchen
   return CAL.groups;
 }
-const NEWS_TXT = {
-  de: (m: number, t: string) => ({title: `⚠ News in ${m} Min.`, body: `${t} – Trade vorher fertig? Stop steht?`}),
-  en: (m: number, t: string) => ({title: `⚠ News in ${m} min`, body: `${t} – Trade done before? Stop set?`})
-};
+
 function localNow(tz: string){
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short', hour12:false})
     .formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -125,20 +135,20 @@ Deno.serve(async (req) => {
     /* Nächster wichtiger Termin in 20–31 Min.? (läuft jede Minute, einmal pro Termin und Gerät) */
     const soon = (rows || []).some((r: any) => r.news === true) ? (await calGroups()).find(g => g.ts - Date.now() > 20 * 60000 && g.ts - Date.now() <= 31 * 60000) : null;
     for (const r of rows || []){
-      const L = localNow(r.tz || 'Europe/Berlin'), lang = r.lang === 'en' ? 'en' : 'de';
+      const L = localNow(r.tz || 'Europe/Berlin'), lang = langOf(r.lang);
       const tm = toMin(r.remind_time);
       if (tm >= 0 && (r.remind_days || []).includes(L.wd) && L.min >= tm && L.min < tm + 15 && r.last_daily !== L.date){
         await sb.from('push_subs').update({last_daily: L.date}).eq('id', r.id);
-        if (await deliver(r, {...TXT[lang].daily(r.remind_time), url: APP + '?from=push', tag:'daily'}) === 201) sent++;
+        if (await deliver(r, {...TXT.daily(lang, r.remind_time), url: APP + '?from=push', tag:'daily'}) === 201) sent++;
       }
       if (soon && r.news === true && r.last_news !== String(soon.ts)){
         await sb.from('push_subs').update({last_news: String(soon.ts)}).eq('id', r.id);
         const m = Math.round((soon.ts - Date.now()) / 60000), t = soon.titles.length > 110 ? soon.titles.slice(0, 107) + '…' : soon.titles;
-        if (await deliver(r, {...NEWS_TXT[lang](m, t), url: APP + '?from=news', tag: 'news'}) === 201) sent++;
+        if (await deliver(r, {...TXT.news(lang, m, t), url: APP + '?from=news', tag: 'news'}) === 201) sent++;
       }
       if (r.review && L.wd === 7 && L.min >= 18*60 && L.min < 18*60 + 15 && r.last_review !== L.date){
         await sb.from('push_subs').update({last_review: L.date}).eq('id', r.id);
-        if (await deliver(r, {...TXT[lang].review, url: APP + '?view=review', tag:'review'}) === 201) sent++;
+        if (await deliver(r, {...TXT.review(lang), url: APP + '?view=review', tag:'review'}) === 201) sent++;
       }
     }
     return json({ok: true, sent});
@@ -153,7 +163,7 @@ Deno.serve(async (req) => {
     const days = Array.isArray(body.days) ? body.days.map(Number).filter((d: number) => d >= 1 && d <= 7) : [1,2,3,4,5];
     const row = {user_id: user.id, endpoint: s.endpoint, p256dh: k.p256dh, auth: k.auth,
       remind_time: /^\d{2}:\d{2}$/.test(body.time || '') ? body.time : null, remind_days: days, review: body.review !== false,
-      tz: String(body.tz || 'Europe/Berlin').slice(0, 64), lang: body.lang === 'en' ? 'en' : 'de'};
+      tz: String(body.tz || 'Europe/Berlin').slice(0, 64), lang: langOf(body.lang)};
     let { error } = await sb.from('push_subs').upsert({...row, news: body.news !== false}, {onConflict: 'endpoint'});
     if (error && /news/.test(error.message || '')) ({ error } = await sb.from('push_subs').upsert(row, {onConflict: 'endpoint'}));   // Spalte noch nicht angelegt
     return error ? json({error: error.message}, 500) : json({ok: true});
@@ -165,7 +175,7 @@ Deno.serve(async (req) => {
   if (action === 'test'){
     const { data: rows } = await sb.from('push_subs').select('*').eq('user_id', user.id);
     const res = [];
-    for (const r of rows || []) res.push(await deliver(r, {...TXT[r.lang === 'en' ? 'en' : 'de'].test, url: APP, tag: 'test'}));
+    for (const r of rows || []) res.push(await deliver(r, {...TXT.test(langOf(r.lang)), url: APP, tag: 'test'}));
     return json({ok: true, results: res});
   }
   return json({error: 'unknown action'}, 400);

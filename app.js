@@ -1619,14 +1619,25 @@ async function pushToggle(){
       sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64ToUint8(pub)});
     }
     const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review, news: r.news !== false,
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: (typeof LANG !== 'undefined' && LANG !== 'de' ? 'en' : 'de')});
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG});
     if (!res.ok) throw new Error(res.error || 'Server');
-    cfg.reminder = Object.assign(r, {on: true}); saveCfg();
+    cfg.reminder = Object.assign(r, {on: true}); saveCfg(); LS.set('pushLang', LANG);
     const t = await pushCall({action: 'test'}).catch(() => ({}));
     const sent = t.results && t.results.some(x => x >= 200 && x < 300);
     say(sent ? 'Aktiv ✓ Eine Testnachricht ist unterwegs – sie kommt in ein paar Sekunden.' : 'Aktiv ✓ Du bekommst die Erinnerung zur gewählten Zeit.', true);
     setTimeout(settings, 3000);
   } catch (e){ btn.disabled = false; say('Das hat nicht geklappt: ' + (e && e.message || e)); }
+}
+/* Sprache der Push-Nachrichten nachziehen, wenn die App-Sprache gewechselt wurde */
+async function pushSyncLang(){
+  try {
+    const r = reminderCfg();
+    if (!HAS_BACKEND || !Sync.ok || !r.on || !pushSupported() || Notification.permission !== 'granted' || LS.get('pushLang', '') === LANG) return;
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (!sub) return;
+    const res = await pushCall({action: 'subscribe', sub: sub.toJSON(), time: r.time, days: r.days, review: r.review, news: r.news !== false,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG});
+    if (res.ok) LS.set('pushLang', LANG);
+  } catch (e) {}
 }
 async function pushTest(btn){
   btn.disabled = true; const res = await pushCall({action: 'test'}).catch(() => ({}));
@@ -3876,7 +3887,7 @@ async function boot(){
   let session = null;
   try { session = (await sb.auth.getSession()).data.session; } catch(e){}
   if (!session && needsLogin()) accountView('login'); else if (needsDisclaimer()) home(); else if (new URLSearchParams(location.search).get('view') === 'review' && cache.journal.length) weeklyReview(); else if (!restoreNav()) home();
-  startSync();
+  startSync(); setTimeout(pushSyncLang, 6000);
 }
 boot();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.TP_PREVIEW){
