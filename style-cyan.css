@@ -616,6 +616,9 @@ a.ich{text-decoration:none}
 .calday .cdl{font-size:12.5px;color:var(--mut);width:100%}
 .calchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
 .calhit{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(246,70,93,.35);background:rgba(246,70,93,.06);font-size:14px;font-weight:600}
+.row.stack{flex-direction:column}.row.stack .btn{width:100%;flex:none}
+.note.calsoon{color:#f0b429;border-color:rgba(240,180,41,.4);background:rgba(240,180,41,.07)}
+.calhit{margin-bottom:12px}.calhit em{margin-left:auto;font-style:normal;font-variant-numeric:tabular-nums;color:var(--mut)}
 
 /* Cyan-Design: flacher, schärfer, wie ein Börsen-Terminal */
 .card{box-shadow:none;background:var(--card)}

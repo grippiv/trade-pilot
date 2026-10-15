@@ -57,7 +57,7 @@ const DEFAULT_CHECKS_EN = [
   'Confirmation signal is there – after the candle closes, not before',
   'The higher timeframe does not argue against the trade'
 ];
-const DEFAULTS = {maxTrades:2, lossLimit:2, cooldownLoss:15, cooldownWin:5, risk:1, minCRV:2, konto:1000, hebel:5, newsWin:30, usOpenBlock:10, weekLimit:5, ddCut:4,
+const DEFAULTS = {maxTrades:2, lossLimit:2, cooldownLoss:15, cooldownWin:5, risk:1, minCRV:2, konto:1000, hebel:5, newsWin:30, usOpenBlock:10, weekLimit:5, ddCut:4, newsMode:'warn',
   strats:['Fair Value Gap','Support & Resistance','Trendfolge'], checks: DEFAULT_CHECKS};
 const freshDefaults = () => Object.assign({}, DEFAULTS, {strats: DEFAULTS.strats.slice(), checks: DEFAULTS.checks.slice()});
 const cfg = Object.assign(freshDefaults(), S.get('cfg', {}));
@@ -1302,6 +1302,35 @@ Object.assign(I18N_EN, {
   "Hohe Wirkung": "High impact",
   "Mittlere Wirkung": "Medium impact"
 });
+
+/* News-Warnung */
+Object.assign(I18N_EN, {
+  "Vorsicht": "Caution",
+  "warnt NoTilt vor neuen Trades: # Min. davor bis # Min. danach, bei der Fed # bis # Min. Zeiten in deiner Zeitzone.": "NoTilt warns you before new trades: # min before to # min after, for the Fed # to # min. Times in your time zone.",
+  "sperrt NoTilt vor neuen Trades: # Min. davor bis # Min. danach, bei der Fed # bis # Min. Zeiten in deiner Zeitzone.": "NoTilt blocks new trades: # min before to # min after, for the Fed # to # min. Times in your time zone.",
+  "um # Uhr": "at #",
+  "Plane, ob dein Trade vorher fertig ist – oder halte ihn bewusst mit Stop.": "Plan whether your trade is done before – or hold it deliberately with a stop.",
+  "läuft gerade": "happening now",
+  "Stop steht? Bewusst halten oder vorher schließen.": "Stop set? Hold deliberately or close before.",
+  "⚠ News-Fenster": "⚠ News window",
+  "Wichtiger Termin in # Min.": "Major event in # min",
+  "Wichtiger Termin jetzt": "Major event now",
+  "Wichtiger Termin vor # Min.": "Major event # min ago",
+  "Rund um solche Termine springt der Kurs oft wild hin und her. Stops werden überrannt, Spreads werden größer.": "Around events like this, price often jumps around wildly. Stops get run, spreads widen.",
+  "Bei Fed-Terminen positioniert sich der Markt oft schon Stunden vorher. Danach kommen Statement und Pressekonferenz – oft zwei Wellen in beide Richtungen.": "Before Fed events the market often positions hours ahead. Then come the statement and the press conference – often two waves in both directions.",
+  "Die große Bewegung kommt meist in den ersten Minuten nach der Veröffentlichung – und dreht danach oft wieder.": "The big move usually comes in the first minutes after the release – and often reverses afterwards.",
+  "Lieber warten": "Better wait",
+  "Bewusst traden, ½ Risiko": "Trade deliberately, ½ risk",
+  "½ Risiko:": "½ risk:",
+  "News-Trade": "News trade",
+  "Kleinere Position, weil der Kurs rund um den Termin wild springt.": "Smaller position, because price jumps around wildly near the event.",
+  "Im Fenster": "In window",
+  "News um # Uhr. Neue Trades sind rund um den Termin gesperrt.": "News at #. New trades are blocked around the event.",
+  "Wichtige News-Termine": "Major news events",
+  "Warnen": "Warn",
+  "Sperren": "Block",
+  "Warnen: Hinweis vor dem Trade, Trade mit ½ Risiko möglich. Sperren: kein Trade rund um den Termin.": "Warn: a heads-up before the trade, trading with ½ risk possible. Block: no trade around the event."
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -2099,6 +2128,7 @@ function riskNow(){
 }
 function riskWhyHtml(){
   if (!st.riskWhy || st.risk > cfg.risk / 2 + 1e-9) return '';
+  if (st.riskWhy === 'news') return `<p class="note">½ Risiko: <span>News-Trade</span> (<b>${esc(st.news)}</b>). <span>Kleinere Position, weil der Kurs rund um den Termin wild springt.</span></p>`;
   return `<p class="note">½ Risiko: ${st.riskWhy === 'dd'
     ? `Drawdown-Schutz – du liegst ${fmt(st.riskDD,1)} R unter deinem Hoch. Volles Risiko nach 2 Gewinnern in Folge.`
     : `Tilt-Meter erhöht (${st.riskScore}). Kleiner traden, bis der Kopf wieder ruhig ist.`}</p>`;
@@ -2179,11 +2209,40 @@ const hhmm = ts => new Date(ts).toLocaleTimeString(LOC(), {hour: '2-digit', minu
 const calToday = () => calEvents().filter(e => isToday(e.ts));
 const calHigh = () => calToday().filter(e => e.imp === 'High');
 const impDots = imp => `<span class="imp imp-${imp === 'High' ? 'h' : 'm'}" title="${imp === 'High' ? 'Hohe Wirkung' : 'Mittlere Wirkung'}"><i></i><i></i><i></i></span>`;
+/* Fenster je nach Termin: Fed-Termine wirken länger (Positionierung vorher, Statement + Pressekonferenz danach) */
+const isFed = e => /FOMC|Federal Funds|Fed Chair|Powell|Warsh|Monetary Policy/i.test(e.title);
+const calWin = e => isFed(e) ? {pre: 60, post: 90} : {pre: 15, post: 45};
 /* Läuft gerade ein News-Fenster laut Kalender? */
 function calBlock(){
-  if (!PRO || !(cfg.newsWin > 0)) return null;
-  const now = Date.now(), w = cfg.newsWin * 60000;
-  return calHigh().find(e => now >= e.ts - w && now <= e.ts + w) || null;
+  if (!PRO) return null;
+  const now = Date.now();
+  return calHigh().find(e => now >= e.ts - calWin(e).pre * 60000 && now <= e.ts + calWin(e).post * 60000) || null;
+}
+/* Vorsicht-Phase: wichtiger Termin in den nächsten 3 Stunden (noch keine Warnung beim Start) */
+function calSoon(min = 180){
+  if (!PRO) return null; const now = Date.now();
+  return calHigh().find(e => now < e.ts - calWin(e).pre * 60000 && e.ts - now <= min * 60000) || null;
+}
+const calTitles = ts => calGroups(calHigh()).find(g => g.ts === ts).items.map(e => esc(e.title)).join(' · ');
+function calSoonHtml(){
+  const e = calSoon(); if (!e) return '';
+  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>um ${hhmm(e.ts)} Uhr</span> · <span>${inTxt(e.ts)}</span> – <span>Plane, ob dein Trade vorher fertig ist – oder halte ihn bewusst mit Stop.</span></p>`;
+}
+/* Warnung statt Sperre: bewusste Entscheidung, Trade wird als News-Trade markiert */
+function newsWarn(e){
+  const m = Math.round((e.ts - Date.now()) / 60000);
+  modal(`<div class="tag" style="color:#f0b429">⚠ News-Fenster</div>
+    <div class="q">${m > 0 ? `Wichtiger Termin in ${m} Min.` : m === 0 ? 'Wichtiger Termin jetzt' : `Wichtiger Termin vor ${-m} Min.`}</div>
+    <div class="calhit">${impDots('High')}<span>${calTitles(e.ts)}</span><em>${hhmm(e.ts)}</em></div>
+    <p class="hint">Rund um solche Termine springt der Kurs oft wild hin und her. Stops werden überrannt, Spreads werden größer.</p>
+    <details class="why"><summary>Warum?</summary><p>${isFed(e) ? 'Bei Fed-Terminen positioniert sich der Markt oft schon Stunden vorher. Danach kommen Statement und Pressekonferenz – oft zwei Wellen in beide Richtungen.' : 'Die große Bewegung kommt meist in den ersten Minuten nach der Veröffentlichung – und dreht danach oft wieder.'}</p></details>
+    <div class="row stack"><button class="btn pri" onclick="closeModal()">Lieber warten</button><button class="btn ghost" onclick="closeModal(); start._news = '${e.ts}'; start(); start._news = null;">Bewusst traden, ½ Risiko</button></div>`);
+}
+/* Offener Trade und ein Termin naht */
+function calTradeHtml(){
+  if (!PRO) return ''; const now = Date.now();
+  const e = calHigh().find(x => x.ts - now <= 30 * 60000 && x.ts + calWin(x).post * 60000 > now); if (!e) return '';
+  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>${inTxt(e.ts) === 'vorbei' ? 'läuft gerade' : inTxt(e.ts)}</span> – <span>Stop steht? Bewusst halten oder vorher schließen.</span></p>`;
 }
 function inTxt(ts){
   const m = Math.round((ts - Date.now()) / 60000);
@@ -2199,8 +2258,8 @@ function calHomeHtml(){
   if (!PRO) return '';
   if (!calData) return '';
   const g = calGroups(calToday()), now = Date.now(), blk = calBlock();
-  const rows = g.length ? g.map(x => { const past = x.ts < now - cfg.newsWin * 60000, live = blk && blk.ts === x.ts;
-    return `<div class="calrow ${past ? 'past' : ''} ${live ? 'live' : ''}"><b class="ct">${hhmm(x.ts)}</b>${impDots(x.imp)}<span class="cn">${x.items.map(e => esc(e.title)).join(' · ')}</span><em>${live ? 'Sperre aktiv' : past ? '' : inTxt(x.ts)}</em></div>`; }).join('')
+  const rows = g.length ? g.map(x => { const past = x.ts < now - calWin(x.items[0]).post * 60000, live = blk && blk.ts === x.ts;
+    return `<div class="calrow ${past ? 'past' : ''} ${live ? 'live' : ''}"><b class="ct">${hhmm(x.ts)}</b>${impDots(x.imp)}<span class="cn">${x.items.map(e => esc(e.title)).join(' · ')}</span><em>${live ? (cfg.newsMode === 'block' ? 'Sperre aktiv' : 'Vorsicht') : past ? '' : inTxt(x.ts)}</em></div>`; }).join('')
     : '<p class="calnone">Heute keine wichtigen US-Termine.</p>';
   return `<button type="button" class="calcard ${blk ? 'warn' : ''}" onclick="calWeek()"><span class="calh"><span class="tn">Wirtschaftskalender</span><span class="cw">Woche ›</span></span>${rows}</button>`;
 }
@@ -2209,7 +2268,7 @@ function calWeek(){
   ev.forEach(e => { const k = dayKey(e.ts); (days[k] = days[k] || []).push(e); });
   const keys = Object.keys(days).sort();
   modal(`<div class="tag">● Wirtschaftskalender</div><div class="q">Wichtige US-Termine</div>
-    <p class="hint small">Bei <span class="imp imp-h"><i></i><i></i><i></i></span> sperrt NoTilt neue Trades ${cfg.newsWin} Min. davor und danach. Zeiten in deiner Zeitzone.</p>
+    <p class="hint small">Bei <span class="imp imp-h"><i></i><i></i><i></i></span> ${cfg.newsMode === 'block' ? 'sperrt' : 'warnt'} NoTilt vor neuen Trades: 15 Min. davor bis 45 Min. danach, bei der Fed 60 bis 90 Min. Zeiten in deiner Zeitzone.</p>
     <div class="calweek">${keys.length ? keys.map(k => `<div class="cday ${k === today() ? 'today' : ''}"><div class="cdh">${new Date(k + 'T12:00:00').toLocaleDateString(LOC(), {weekday: 'long', day: 'numeric', month: 'short'})}</div>
       ${days[k].map(e => `<div class="calrow ${e.ts < Date.now() ? 'past' : ''}"><b class="ct">${hhmm(e.ts)}</b>${impDots(e.imp)}<span class="cn">${esc(e.title)}</span><em>${e.fc ? `<span class="cfp">Prognose</span> ${esc(e.fc)}` : ''}${e.pv ? ` · <span class="cfp">vorher</span> ${esc(e.pv)}` : ''}</em></div>`).join('')}</div>`).join('')
       : '<p class="calnone">Gerade keine Termine geladen.</p>'}</div>
@@ -2252,6 +2311,7 @@ function showTrade(id){
       ${row('Setup-Note', grade ? `<span class="ich ${t.grade === 'B' ? '' : 'w'}"><b>${grade[0]}</b> ${esc(grade[1])}</span>` : '')}
       ${row('Gefühl', feel ? `<span class="ich ${t.feel === 'ruhig' ? 'w' : 'l'}">${esc(feel)}</span>` : '')}
       ${t.art !== 'import' ? row('Impulse', t.impulse ? `<span class="ich l"><b>${t.impulse}×</b> im Trade</span>` : t.checklist ? '<span class="ich w">Keine</span>' : '') : ''}
+      ${row('News-Fenster', t.news ? `<span class="ich l">${esc(t.news)}</span>` : '')}
       ${row('Checkliste', t.art === 'import' ? '' : t.checklist ? '<span class="ich w">Ja</span>' : '<span class="ich l">Ohne</span>')}
       ${PRO && (hasN(t.mae) || hasN(t.mfe)) ? row('Verlauf', `${hasN(t.mae) ? `<span class="ich">Max. gegen dich <b>${rLbl(t.mae)} R</b></span>` : ''}${hasN(t.mfe) ? `<span class="ich">Max. für dich <b>${rLbl(t.mfe)} R</b></span>` : ''}`) : ''}
       ${t.rules ? row('Regeln', RULES.map(([k, l]) => `<span class="ich ${t.rules[k] === false ? 'l no' : 'w ok'}">${l}</span>`).join('')) : ''}
@@ -2514,8 +2574,10 @@ function start(){
   const b = biasToday();
   if (!b) return dayCheck(true);
   if (b.b==='neutral') return stopView('neutral');
-  const nb = newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
-  const ce = calBlock(); if (ce) return stopView('news', `News um ${hhmm(ce.ts)} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`, `<div class="calhit">${impDots(ce.imp)}<span>${calGroups(calHigh()).find(g => g.ts === ce.ts).items.map(e => esc(e.title)).join(' · ')}</span></div>`);
+  const nb = PRO && calEvents().length ? null : newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
+  const ce = calBlock();
+  if (ce && cfg.newsMode === 'block') return stopView('news', `News um ${hhmm(ce.ts)} Uhr. Neue Trades sind rund um den Termin gesperrt.`, `<div class="calhit">${impDots(ce.imp)}<span>${calTitles(ce.ts)}</span></div>`);
+  if (ce && String(start._news) !== String(ce.ts)) return newsWarn(ce);
   if (usOpenBlock()) return stopView('usopen', `US-Börse seit ${usOpenLocal()} Uhr offen. Die ersten ${cfg.usOpenBlock} Min.: kein Trade.`);
   const ti = tiltInfo();
   if (PRO && ti.level === 'hot' && !start._tilt) return modal(`<div class="tag" style="color:var(--red)">● Tilt-Meter: hoch (${ti.score})</div>
@@ -2532,7 +2594,8 @@ function start(){
       <p class="hint">Du riskierst gerade ${fmt(rTot,2)} %, mit noch einem Trade ca. ${fmt(rTot + cfg.risk,2)} %. Gleiche Richtung heißt oft: Sie verlieren zusammen.</p>
       <div class="row"><button class="btn ghost" onclick="closeModal()">Lieber nicht</button><button class="btn pri" onclick="closeModal(); start._ok = true; start._tilt = true; start(); start._ok = false; start._tilt = false;">Zur Checkliste</button></div>`);
   }
-  const ls = S.get('lastStrat', ''), rk = riskNow(); st = {dir: b.b, risk: rk.risk, riskWhy: rk.why, riskDD: rk.dd, riskScore: rk.score, strat: strats().includes(ls) ? ls : strats()[0]}; fi = 0; step();
+  const ls = S.get('lastStrat', ''), rk = riskNow(); st = {dir: b.b, risk: rk.risk, riskWhy: rk.why, riskDD: rk.dd, riskScore: rk.score, strat: strats().includes(ls) ? ls : strats()[0]};
+  if (ce){ st.news = calGroups(calHigh()).find(g => g.ts === ce.ts).items.map(e => e.title).join(' · '); st.risk = Math.min(st.risk, cfg.risk / 2); st.riskWhy = 'news'; } fi = 0; step();
 }
 function step(){ stopTimers(); curView = 'flow'; progress(fi); ({sigh, kopf, setup, plan, commit})[FLOW[fi]](); }
 function next(){ fi++; step(); }
@@ -2694,7 +2757,7 @@ function plan(){
     </div>
     ${(() => { const s = stratBy(st.strat); return s && (s.stop || s.target) ? `<p class="hint small rulehint">${s.stop ? `Stop: <b>${esc(s.stop)}</b>` : ''}${s.stop && s.target ? ' · ' : ''}${s.target ? `Ziel: <b>${esc(s.target)}</b>` : ''}</p>` : ''; })()}
     <button class="mini" onclick="$('#accf').hidden=!$('#accf').hidden">Konto ${fmt(cfg.konto,0)} USDT · Risiko ${fmt(st.risk,2)} % · Hebel ${fmt(cfg.hebel,0)}x · ändern</button>
-    ${riskWhyHtml()}
+    ${riskWhyHtml()}${calSoonHtml()}
     <div class="grid3" id="accf" hidden>
       <div class="f"><label for="konto">Konto (USDT)</label><input id="konto" inputmode="decimal" value="${cfg.konto}"></div>
       <div class="f"><label for="risk">Risiko (%)</label><input id="risk" inputmode="decimal" value="${st.risk}"></div>
@@ -2768,7 +2831,7 @@ function enterTrade(){
   progress(4); $$('.phase').forEach(p=>p.classList.add('done'));
   const id = 'o' + Date.now().toString(36);
   setOpen([...openTrades(), {id, dir:st.dir, coin:st.coin||'', strat:st.strat, grade:st.grade, entry:st.entry, sl:st.sl, tp:st.tp, crv:st.crv,
-    riskAmt:st.riskAmt, risk:st.risk, feel:st.feel||'', start:Date.now()}]);
+    riskAmt:st.riskAmt, risk:st.risk, feel:st.feel||'', news:st.news||'', start:Date.now()}]);
   setTimeout(() => inTrade(id), 500);
 }
 
@@ -2790,7 +2853,7 @@ function inTrade(id){
       <div class="kpi good"><div class="v">${fmt(a.tp,4)}</div><div class="l">Take Profit</div></div>
       <div class="kpi"><div class="v">${fmt(a.riskAmt)}</div><div class="l">Risiko USDT</div></div>
     </div>
-    <div class="reminder" id="rem">${REMIND[0]}</div>
+    ${calTradeHtml()}<div class="reminder" id="rem">${REMIND[0]}</div>
     <p class="hint" style="margin:16px 0 0">Impuls? Erst hier tippen:</p>
     <div class="temps">
       <button class="temp" onclick="tempt('stop')">Stop verschieben</button>
@@ -2885,7 +2948,7 @@ function saveTrade(art){
   const t = {date:new Date().toISOString(), coin:a.coin||'', strat:a.strat||'', grade:a.grade||'', dir:a.dir, entry:a.entry, sl:a.sl, tp:a.tp, R,
     art, exit: exitPx, rules, plan: said === false ? false : Object.values(rules).every(Boolean), err: readMistakes('mist'), feel:a.feel||'', impulse:a.impulse||0, risk:a.risk||null, riskUsd: isFinite(a.riskAmt) ? +(+a.riskAmt).toFixed(2) : null,
     note:$('#note').value.trim().slice(0,500), link: cleanLink($('#link').value), checklist:true,
-    mae: art==='sl' ? -1 : excVal('mae'), mfe: art==='tp' ? R : excVal('mfe'), crv: isFinite(a.crv) ? +(+a.crv).toFixed(2) : null, opened: a.start || null};
+    mae: art==='sl' ? -1 : excVal('mae'), mfe: art==='tp' ? R : excVal('mfe'), crv: isFinite(a.crv) ? +(+a.crv).toFixed(2) : null, opened: a.start || null, news: a.news || ''};
   addTrade(t); attachShots(t.id, files);
   setOpen(openTrades().filter(x => x.id !== a.id)); curOpen = null;
   const mins = R<0 ? cfg.cooldownLoss : cfg.cooldownWin;
@@ -2966,6 +3029,7 @@ function insights(arr){
   pair('Gefühl', arr.filter(x=>x.feel==='ruhig'), 'Ruhig', arr.filter(x=>x.feel==='angst'), 'Nervös');
   pair('Checkliste', arr.filter(x=>x.checklist), 'Mit', arr.filter(x=>!x.checklist), 'Ohne');
   pair('Impulse', arr.filter(x=>!x.impulse), 'Ohne', arr.filter(x=>x.impulse>0), 'Mit');
+  pair('News-Fenster', arr.filter(x=>!x.news), 'Ohne', arr.filter(x=>x.news), 'Im Fenster');
   const bs = {}; arr.forEach(x => { if (x.strat) (bs[x.strat] = bs[x.strat] || []).push(x); });
   const sk = Object.keys(bs).filter(k => bs[k].length >= MIN).sort((a,b) => avg(bs[b]) - avg(bs[a]));
   if (sk.length >= 2) row('Strategie', sk.map(k => ({l:esc(k), v:avg(bs[k]), n:bs[k].length})));
@@ -3121,6 +3185,8 @@ function settings(){
       return `<div class="grid2">${F.filter(f => basic.includes(f[0])).map(fld).join('')}</div>
       ${PRO ? '<p class="hint small" style="margin:-4px 0 10px">Wochen-Limit und Drawdown-Schutz: 0 = aus.</p>' : ''}
       <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
+    ${PRO ? `<div class="f tog"><label>Wichtige News-Termine</label>${chipRow('s_newsm', [['warn','Warnen'],['block','Sperren']], cfg.newsMode === 'block' ? 'block' : 'warn', 'small')}
+      <p class="hint small" style="margin:6px 0 0">Warnen: Hinweis vor dem Trade, Trade mit ½ Risiko möglich. Sperren: kein Trade rund um den Termin.</p></div>` : ''}
     <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
       <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
     <div class="f tog"><label>Sprache / Language</label><button type="button" class="langbtn" onclick="langPicker()"><span translate="no">${langName()}</span><em>›</em></button></div>
@@ -3142,7 +3208,7 @@ function settings(){
   later(() => {
     bindChips('s_theme', v => { LS.set('theme', v); location.href = location.pathname + '?theme=' + v; });
     bindChips('s_sound', v => { cfg.sound = v==='an'; saveCfg(); if (cfg.sound) Snd.kept(); });
-    bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindReminder(); });
+    bindChips('s_mode', v => { cfg.mode = v; saveCfg(); }); bindChips('s_newsm', v => { cfg.newsMode = v; saveCfg(); }); bindReminder(); });
 }
 function saveSettings(quiet){
   if (!$('#s_max')) return;
