@@ -1331,6 +1331,26 @@ Object.assign(I18N_EN, {
   "Sperren": "Block",
   "Warnen: Hinweis vor dem Trade, Trade mit ½ Risiko möglich. Sperren: kein Trade rund um den Termin.": "Warn: a heads-up before the trade, trading with ½ risk possible. Block: no trade around the event."
 });
+
+/* Kalender kompakt */
+Object.assign(I18N_EN, {
+  "Trade vorher fertig?": "Trade done before?",
+  "News in # Min.": "News in # min",
+  "News jetzt": "News now",
+  "News vor # Min.": "News # min ago",
+  "Fed-Termine bewegen den Markt oft schon Stunden vorher – und danach in zwei Wellen.": "Fed events often move the market hours before – and afterwards in two waves.",
+  "Die große Bewegung kommt in den ersten Minuten danach – und dreht oft wieder. Stops werden überrannt.": "The big move comes in the first minutes after – and often reverses. Stops get run.",
+  "Warten": "Wait",
+  "Trotzdem, mit ½ Risiko": "Anyway, with ½ risk",
+  "Stop steht?": "Stop set?",
+  "Heute keine wichtigen Termine.": "No major events today.",
+  "= kein Trade rund um den Termin.": "= no trade around the event.",
+  "= Warnung rund um den Termin.": "= warning around the event.",
+  "Deine Zeitzone · Quelle: Forex Factory": "Your time zone · Source: Forex Factory",
+  "½ Risiko ·": "½ risk ·",
+  "News um # Uhr – kein Trade.": "News at # – no trade.",
+  "Warnen: Trade mit ½ Risiko möglich. Sperren: kein Trade.": "Warn: trading with ½ risk possible. Block: no trade."
+});
 /* ==================================================================
    Gewohnheit & Lernen
    – Disziplin-Serie (Prozess statt Ergebnis), Fehler und ihre Kosten,
@@ -2128,7 +2148,7 @@ function riskNow(){
 }
 function riskWhyHtml(){
   if (!st.riskWhy || st.risk > cfg.risk / 2 + 1e-9) return '';
-  if (st.riskWhy === 'news') return `<p class="note">½ Risiko: <span>News-Trade</span> (<b>${esc(st.news)}</b>). <span>Kleinere Position, weil der Kurs rund um den Termin wild springt.</span></p>`;
+  if (st.riskWhy === 'news') return `<p class="note">½ Risiko · <b>${esc(st.news)}</b></p>`;
   return `<p class="note">½ Risiko: ${st.riskWhy === 'dd'
     ? `Drawdown-Schutz – du liegst ${fmt(st.riskDD,1)} R unter deinem Hoch. Volles Risiko nach 2 Gewinnern in Folge.`
     : `Tilt-Meter erhöht (${st.riskScore}). Kleiner traden, bis der Kopf wieder ruhig ist.`}</p>`;
@@ -2226,23 +2246,22 @@ function calSoon(min = 180){
 const calTitles = ts => calGroups(calHigh()).find(g => g.ts === ts).items.map(e => esc(e.title)).join(' · ');
 function calSoonHtml(){
   const e = calSoon(); if (!e) return '';
-  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>um ${hhmm(e.ts)} Uhr</span> · <span>${inTxt(e.ts)}</span> – <span>Plane, ob dein Trade vorher fertig ist – oder halte ihn bewusst mit Stop.</span></p>`;
+  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>${inTxt(e.ts)}</span> – <span>Trade vorher fertig?</span></p>`;
 }
 /* Warnung statt Sperre: bewusste Entscheidung, Trade wird als News-Trade markiert */
 function newsWarn(e){
   const m = Math.round((e.ts - Date.now()) / 60000);
   modal(`<div class="tag" style="color:#f0b429">⚠ News-Fenster</div>
-    <div class="q">${m > 0 ? `Wichtiger Termin in ${m} Min.` : m === 0 ? 'Wichtiger Termin jetzt' : `Wichtiger Termin vor ${-m} Min.`}</div>
+    <div class="q">${m > 0 ? `News in ${m} Min.` : m === 0 ? 'News jetzt' : `News vor ${-m} Min.`}</div>
     <div class="calhit">${impDots('High')}<span>${calTitles(e.ts)}</span><em>${hhmm(e.ts)}</em></div>
-    <p class="hint">Rund um solche Termine springt der Kurs oft wild hin und her. Stops werden überrannt, Spreads werden größer.</p>
-    <details class="why"><summary>Warum?</summary><p>${isFed(e) ? 'Bei Fed-Terminen positioniert sich der Markt oft schon Stunden vorher. Danach kommen Statement und Pressekonferenz – oft zwei Wellen in beide Richtungen.' : 'Die große Bewegung kommt meist in den ersten Minuten nach der Veröffentlichung – und dreht danach oft wieder.'}</p></details>
-    <div class="row stack"><button class="btn pri" onclick="closeModal()">Lieber warten</button><button class="btn ghost" onclick="closeModal(); start._news = '${e.ts}'; start(); start._news = null;">Bewusst traden, ½ Risiko</button></div>`);
+    <details class="why"><summary>Warum?</summary><p>${isFed(e) ? 'Fed-Termine bewegen den Markt oft schon Stunden vorher – und danach in zwei Wellen.' : 'Die große Bewegung kommt in den ersten Minuten danach – und dreht oft wieder. Stops werden überrannt.'}</p></details>
+    <div class="row stack"><button class="btn pri" onclick="closeModal()">Warten</button><button class="btn ghost" onclick="closeModal(); start._news = '${e.ts}'; start(); start._news = null;">Trotzdem, mit ½ Risiko</button></div>`);
 }
 /* Offener Trade und ein Termin naht */
 function calTradeHtml(){
   if (!PRO) return ''; const now = Date.now();
   const e = calHigh().find(x => x.ts - now <= 30 * 60000 && x.ts + calWin(x).post * 60000 > now); if (!e) return '';
-  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>${inTxt(e.ts) === 'vorbei' ? 'läuft gerade' : inTxt(e.ts)}</span> – <span>Stop steht? Bewusst halten oder vorher schließen.</span></p>`;
+  return `<p class="note calsoon">⚠ <b>${calTitles(e.ts)}</b> <span>${inTxt(e.ts) === 'vorbei' ? 'jetzt' : inTxt(e.ts)}</span> – <span>Stop steht?</span></p>`;
 }
 function inTxt(ts){
   const m = Math.round((ts - Date.now()) / 60000);
@@ -2260,7 +2279,7 @@ function calHomeHtml(){
   const g = calGroups(calToday()), now = Date.now(), blk = calBlock();
   const rows = g.length ? g.map(x => { const past = x.ts < now - calWin(x.items[0]).post * 60000, live = blk && blk.ts === x.ts;
     return `<div class="calrow ${past ? 'past' : ''} ${live ? 'live' : ''}"><b class="ct">${hhmm(x.ts)}</b>${impDots(x.imp)}<span class="cn">${x.items.map(e => esc(e.title)).join(' · ')}</span><em>${live ? (cfg.newsMode === 'block' ? 'Sperre aktiv' : 'Vorsicht') : past ? '' : inTxt(x.ts)}</em></div>`; }).join('')
-    : '<p class="calnone">Heute keine wichtigen US-Termine.</p>';
+    : '<p class="calnone">Heute keine wichtigen Termine.</p>';
   return `<button type="button" class="calcard ${blk ? 'warn' : ''}" onclick="calWeek()"><span class="calh"><span class="tn">Wirtschaftskalender</span><span class="cw">Woche ›</span></span>${rows}</button>`;
 }
 function calWeek(){
@@ -2268,11 +2287,11 @@ function calWeek(){
   ev.forEach(e => { const k = dayKey(e.ts); (days[k] = days[k] || []).push(e); });
   const keys = Object.keys(days).sort();
   modal(`<div class="tag">● Wirtschaftskalender</div><div class="q">Wichtige US-Termine</div>
-    <p class="hint small">Bei <span class="imp imp-h"><i></i><i></i><i></i></span> ${cfg.newsMode === 'block' ? 'sperrt' : 'warnt'} NoTilt vor neuen Trades: 15 Min. davor bis 45 Min. danach, bei der Fed 60 bis 90 Min. Zeiten in deiner Zeitzone.</p>
+    <p class="hint small"><span class="imp imp-h"><i></i><i></i><i></i></span> ${cfg.newsMode === 'block' ? '= kein Trade rund um den Termin.' : '= Warnung rund um den Termin.'}</p>
     <div class="calweek">${keys.length ? keys.map(k => `<div class="cday ${k === today() ? 'today' : ''}"><div class="cdh">${new Date(k + 'T12:00:00').toLocaleDateString(LOC(), {weekday: 'long', day: 'numeric', month: 'short'})}</div>
       ${days[k].map(e => `<div class="calrow ${e.ts < Date.now() ? 'past' : ''}"><b class="ct">${hhmm(e.ts)}</b>${impDots(e.imp)}<span class="cn">${esc(e.title)}</span><em>${e.fc ? `<span class="cfp">Prognose</span> ${esc(e.fc)}` : ''}${e.pv ? ` · <span class="cfp">vorher</span> ${esc(e.pv)}` : ''}</em></div>`).join('')}</div>`).join('')
       : '<p class="calnone">Gerade keine Termine geladen.</p>'}</div>
-    <p class="hint small">Quelle: Forex Factory · keine Gewähr.</p>
+    <p class="hint small">Deine Zeitzone · Quelle: Forex Factory</p>
     <div class="row"><button class="btn pri" onclick="closeModal()">Verstanden</button></div>`);
 }
 /* ==================================================================
@@ -2576,7 +2595,7 @@ function start(){
   if (b.b==='neutral') return stopView('neutral');
   const nb = PRO && calEvents().length ? null : newsBlock(); if (nb) return stopView('news', `News um ${nb} Uhr. ${cfg.newsWin} Min. davor und danach: kein Trade.`);
   const ce = calBlock();
-  if (ce && cfg.newsMode === 'block') return stopView('news', `News um ${hhmm(ce.ts)} Uhr. Neue Trades sind rund um den Termin gesperrt.`, `<div class="calhit">${impDots(ce.imp)}<span>${calTitles(ce.ts)}</span></div>`);
+  if (ce && cfg.newsMode === 'block') return stopView('news', `News um ${hhmm(ce.ts)} Uhr – kein Trade.`, `<div class="calhit">${impDots(ce.imp)}<span>${calTitles(ce.ts)}</span></div>`);
   if (ce && String(start._news) !== String(ce.ts)) return newsWarn(ce);
   if (usOpenBlock()) return stopView('usopen', `US-Börse seit ${usOpenLocal()} Uhr offen. Die ersten ${cfg.usOpenBlock} Min.: kein Trade.`);
   const ti = tiltInfo();
@@ -3186,7 +3205,7 @@ function settings(){
       ${PRO ? '<p class="hint small" style="margin:-4px 0 10px">Wochen-Limit und Drawdown-Schutz: 0 = aus.</p>' : ''}
       <details class="more"><summary>Weitere Grenzen (Chance-Risiko, Hebel, Pausen, News)</summary><div class="grid2">${F.filter(f => !basic.includes(f[0])).map(fld).join('')}</div></details>`; })()}
     ${PRO ? `<div class="f tog"><label>Wichtige News-Termine</label>${chipRow('s_newsm', [['warn','Warnen'],['block','Sperren']], cfg.newsMode === 'block' ? 'block' : 'warn', 'small')}
-      <p class="hint small" style="margin:6px 0 0">Warnen: Hinweis vor dem Trade, Trade mit ½ Risiko möglich. Sperren: kein Trade rund um den Termin.</p></div>` : ''}
+      <p class="hint small" style="margin:6px 0 0">Warnen: Trade mit ½ Risiko möglich. Sperren: kein Trade.</p></div>` : ''}
     <div class="f tog"><label>Ansicht</label>${chipRow('s_mode', [['simple','Einfach'],['pro','Alle Details']], simple() ? 'simple' : 'pro', 'small')}
       <p class="hint small" style="margin:6px 0 0">Einfach: nur das Wichtigste, Details auf Wunsch. Alle Details: jede Kennzahl sofort sichtbar.</p></div>
     <div class="f tog"><label>Sprache / Language</label><button type="button" class="langbtn" onclick="langPicker()"><span translate="no">${langName()}</span><em>›</em></button></div>
