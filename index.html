@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>NoTilt has moved</title>
+<link rel="icon" href="https://notilt.pages.dev/icons/favicon-32.png">
+<script>
+/* NoTilt ist nach https://notilt.pages.dev umgezogen.
+   - Mit Konto (Daten liegen in Supabase): sofort weiterleiten.
+   - Ohne Konto, aber mit lokalen Trades: erst Backup anbieten, weil der Browser-Speicher an die alte Adresse gebunden ist. */
+(function(){
+  var NEW = 'https://notilt.pages.dev/';
+  var path = location.pathname.replace(/^\/trade-pilot\/?/, '');
+  var target = NEW + path + location.search + location.hash;
+  window.__target = target;
+
+  /* Alten Service Worker loswerden, damit installierte Apps nicht die alte Version zeigen */
+  try { if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); } catch(e){}
+  try { if (window.caches) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); } catch(e){}
+
+  var journal = [], session = false;
+  try { journal = JSON.parse(localStorage.getItem('tp_journal') || '[]') || []; } catch(e){ journal = []; }
+  try {
+    for (var i = 0; i < localStorage.length; i++){
+      var k = localStorage.key(i);
+      if (/^sb-.*-auth-token$/.test(k) && localStorage.getItem(k)) session = true;
+    }
+  } catch(e){}
+  window.__journal = Array.isArray(journal) ? journal.filter(function(t){ return t && t.art !== 'demo'; }) : [];
+  if (session || !window.__journal.length) location.replace(target);
+})();
+</script>
+<style>
+:root{--bg:#000;--panel:#121416;--line:#24292c;--fg:#f1f5f6;--muted:#9aa6aa;--accent:#19dcf2}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:24px 16px}
+.card{max-width:440px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;display:grid;gap:14px}
+.tag{font:700 12px/1 -apple-system,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{margin:0;font-size:24px;line-height:1.2}
+p{margin:0;color:var(--muted)}
+p b{color:var(--fg)}
+ol{margin:0;padding-left:20px;color:var(--muted)}
+ol b{color:var(--fg)}
+.btn{display:block;width:100%;text-align:center;font:600 16px -apple-system,sans-serif;border-radius:12px;padding:14px;border:0;cursor:pointer;text-decoration:none}
+.primary{background:var(--accent);color:#000}
+.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.ok{color:#3ccf8e;font-size:14px;min-height:1.5em}
+</style>
+</head>
+<body>
+<main class="card" id="card">
+  <div class="tag">NoTilt</div>
+  <h1 data-de="NoTilt ist umgezogen" data-en="NoTilt has moved">NoTilt has moved</h1>
+  <p data-de="Die App läuft jetzt unter <b>notilt.pages.dev</b>. Deine Trades auf diesem Gerät sind nur hier im Browser gespeichert und wandern nicht automatisch mit." data-en="The app now lives at <b>notilt.pages.dev</b>. Your trades on this device are only stored in this browser and don't move over automatically.">The app now lives at <b>notilt.pages.dev</b>.</p>
+  <ol>
+    <li data-de="<b>Backup speichern</b> (Knopf unten)" data-en="<b>Save your backup</b> (button below)">Save your backup</li>
+    <li data-de="Neue App öffnen → <b>Einstellungen → Daten: Backup &amp; Löschen → Backup laden</b>" data-en="Open the new app → <b>Settings → Data: backup &amp; delete → Load backup</b>">Open the new app</li>
+  </ol>
+  <button class="btn primary" id="save" data-de="Backup speichern" data-en="Save backup">Save backup</button>
+  <div class="ok" id="ok"></div>
+  <a class="btn ghost" id="go" href="https://notilt.pages.dev/" data-de="Zur neuen App" data-en="Go to the new app">Go to the new app</a>
+</main>
+<script>
+(function(){
+  var de = /^de\b/i.test(navigator.language || '');
+  document.documentElement.lang = de ? 'de' : 'en';
+  if (de) document.title = 'NoTilt ist umgezogen';
+  Array.prototype.forEach.call(document.querySelectorAll('[data-en]'), function(el){ el.innerHTML = el.getAttribute(de ? 'data-de' : 'data-en'); });
+  document.getElementById('go').href = window.__target || 'https://notilt.pages.dev/';
+
+  function get(k, d){ try { var v = localStorage.getItem('tp_' + k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } }
+  document.getElementById('save').onclick = function(){
+    var journal = (window.__journal || []).slice().sort(function(a, b){ return Date.parse(b.date) - Date.parse(a.date); });
+    var data = {app: 'notilt', v: 1, exported: new Date().toISOString(), cfg: get('cfg', {}), journal: journal, stops: get('stops', []), lastStrat: get('lastStrat', null)};
+    var blob = new Blob([JSON.stringify(data, null, 1)], {type: 'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'notilt_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    document.getElementById('ok').textContent = (de ? 'Backup gespeichert: ' : 'Backup saved: ') + journal.length + (de ? ' Trades' : ' trades');
+  };
+})();
+</script>
+</body>
+</html>
